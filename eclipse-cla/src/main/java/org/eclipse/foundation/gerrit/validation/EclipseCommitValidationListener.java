@@ -19,10 +19,14 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import com.google.gerrit.extensions.annotations.Listen;
 import com.google.gerrit.reviewdb.client.Account.Id;
 import com.google.gerrit.reviewdb.client.AccountExternalId;
+import com.google.gerrit.reviewdb.client.AccountGroup;
+import com.google.gerrit.reviewdb.client.AccountGroup.NameKey;
+import com.google.gerrit.reviewdb.client.AccountGroup.UUID;
 import com.google.gerrit.reviewdb.client.Project;
 import com.google.gerrit.server.IdentifiedUser;
 import com.google.gerrit.server.account.AccountException;
 import com.google.gerrit.server.account.AccountManager;
+import com.google.gerrit.server.account.GroupCache;
 import com.google.gerrit.server.events.CommitReceivedEvent;
 import com.google.gerrit.server.git.validators.CommitValidationException;
 import com.google.gerrit.server.git.validators.CommitValidationListener;
@@ -77,6 +81,8 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	AccountManager accountManager;
 	@Inject
 	IdentifiedUser.GenericFactory factory;
+	@Inject
+	GroupCache groupCache;
 	
 	/**
 	 * Validate a single commit (this listener will be invoked for each commit in a
@@ -88,7 +94,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 
 		IdentifiedUser user = receiveEvent.user;
 		Project project = receiveEvent.project;
-		
+
 		RevCommit commit = receiveEvent.commit;
 		PersonIdent authorIdent = commit.getAuthorIdent();
 		
@@ -141,18 +147,36 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	}
 
 	/**
-	 * <p>Answers whether or not a user has a current committer agreement on file.
-	 * This determination is made based on group membership. Answers <code>true</code>
-	 * if the user is a member of the designated &quot;CLA&quot; group, or
-	 * <code>false</code> otherwise.
+	 * <p>
+	 * Answers whether or not a user has a current committer agreement on file.
+	 * This determination is made based on group membership. Answers
+	 * <code>true</code> if the user is a member of the designated
+	 * &quot;CLA&quot; group, or <code>false</code> otherwise.
+	 * </p>
 	 * 
 	 * @param user
-	 * @return
+	 *            a Gerrit user.
+	 * @return <code>true</code> if the user has a current agreement, or
+	 *         <code>false</code> otherwise.
 	 */
 	private boolean hasCurrentAgreement(IdentifiedUser user) {
-		// TODO Make the group identity a configurable setting.
-		
-		return false;
+		return user.getEffectiveGroups().containsAnyOf(getEclipseClaGroupIds());
+	}
+
+	/**
+	 * Answers a collection containing the UUIDs of groups that contain users
+	 * with valid CLAs. Multiple values are supported since there is potential
+	 * that--at some point in the future--we may have multiple versions of the
+	 * CLA. Some period of overlap where both the old and new CLAs are valid
+	 * will likely occur in that event.
+	 */
+	private Iterable<UUID> getEclipseClaGroupIds() {
+		// TODO Make the group identities a configurable setting.
+		// TODO Investigate a means of searching for groups based on a name pattern.
+		List<UUID> groups = new ArrayList<AccountGroup.UUID>();
+		AccountGroup version1 = groupCache.get(new AccountGroup.NameKey("Eclipse-CLA-v1"));
+		if (version1 != null) groups.add(version1.getGroupUUID());
+		return groups;
 	}
 
 	private boolean isCommitter(IdentifiedUser user, Project project) {
