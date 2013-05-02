@@ -16,6 +16,8 @@ import java.util.List;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.RevCommit;
 
+import com.google.gerrit.common.data.Capable;
+import com.google.gerrit.common.data.Permission;
 import com.google.gerrit.extensions.annotations.Listen;
 import com.google.gerrit.reviewdb.client.Account.Id;
 import com.google.gerrit.reviewdb.client.AccountExternalId;
@@ -31,6 +33,9 @@ import com.google.gerrit.server.events.CommitReceivedEvent;
 import com.google.gerrit.server.git.validators.CommitValidationException;
 import com.google.gerrit.server.git.validators.CommitValidationListener;
 import com.google.gerrit.server.git.validators.CommitValidationMessage;
+import com.google.gerrit.server.project.NoSuchProjectException;
+import com.google.gerrit.server.project.ProjectControl;
+import com.google.gerrit.server.project.RefControl;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 
@@ -82,6 +87,8 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	@Inject
 	IdentifiedUser.GenericFactory factory;
 	@Inject
+	ProjectControl.GenericFactory projectControlFactory;
+	@Inject
 	GroupCache groupCache;
 	
 	/**
@@ -119,11 +126,14 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		 */
 		if (isCommitter(author, project)) {
 			messages.add(new CommitValidationMessage("The author is a committer on the project.", false));			
-		} else if (!hasCurrentAgreement(author)) {
-			messages.add(new CommitValidationMessage("The author does not have a current Contributor License Agreement (CLA) on file.", true));	
-			messages.add(new CommitValidationMessage("Open your user settings in Gerrit and select \"Agreements\" to create a CLA.", false));	
-			messages.add(new CommitValidationMessage("Please see http://wiki.eclipse.org/CLA", false));
-			throw new CommitValidationException("A Contributor License Agreement is required.", messages);			
+		} else {
+			messages.add(new CommitValidationMessage("The author is not a committer on the project.", false));		
+			if (!hasCurrentAgreement(author)) {
+				messages.add(new CommitValidationMessage("The author does not have a current Contributor License Agreement (CLA) on file.", true));	
+				messages.add(new CommitValidationMessage("Open your user settings in Gerrit and select \"Agreements\" to create a CLA.", false));	
+				messages.add(new CommitValidationMessage("Please see http://wiki.eclipse.org/CLA", false));
+				throw new CommitValidationException("A Contributor License Agreement is required.", messages);
+			}
 		}
 		
 		/*
@@ -143,7 +153,9 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		// TODO consider adding a control to toggle debug mode.
 		// Just reject it, because that's how we roll...
 		// While debugging, it's a bit of a PITA to have to keep creating new commits.
-		throw new CommitValidationException("I'm sorry " + receiveEvent.user.getName() + ", I can't do that.", messages);
+		//throw new CommitValidationException("Under normal circumstances, you'd be good-to-go, but for testing purposes, your commit has been rejected.", messages);
+		
+		return messages;
 	}
 
 	/**
@@ -179,7 +191,29 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		return groups;
 	}
 
+	/**
+	 * Answers whether or not the user can push to the project. Note that
+	 * this is a project in the Gerrit sense, not the Eclipse sense; we
+	 * assume that any user who is authorized to push to the project 
+	 * repository is a committer.
+	 * 
+	 * @param user
+	 * @param project
+	 * @return
+	 */
 	private boolean isCommitter(IdentifiedUser user, Project project) {
+		try {
+			/*
+			 * We assume that an individual is a committer if they can push to
+			 * the project.
+			 */
+			ProjectControl projectControl = projectControlFactory.controlFor(project.getNameKey(), user);
+			RefControl refControl = projectControl.controlForRef("refs/heads/*");
+			return refControl.canUpdate();
+		} catch (NoSuchProjectException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		return false;
 	}
 
