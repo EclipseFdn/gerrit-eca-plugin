@@ -106,8 +106,10 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		PersonIdent authorIdent = commit.getAuthorIdent();
 		
 		List<CommitValidationMessage> messages = new ArrayList<CommitValidationMessage>();
+		messages.add(new CommitValidationMessage("", false));
 		messages.add(new CommitValidationMessage(String.format("Reviewing commit: %1$s", commit.getId()), false));
-		messages.add(new CommitValidationMessage(String.format("Authored by: %1$s", authorIdent.getName()), false));
+		messages.add(new CommitValidationMessage(String.format("Authored by: %1$s <%2$s>", authorIdent.getName(), authorIdent.getEmailAddress()), false));
+		messages.add(new CommitValidationMessage("", false));
 		
 		/*
 		 * The user must have a presence in Gerrit.
@@ -117,6 +119,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			messages.add(new CommitValidationMessage("The author does not have a Gerrit account.", true));
 			messages.add(new CommitValidationMessage("All authors must either be a commiter on the project, or have a current CLA on file.", false));
 			messages.add(new CommitValidationMessage("Please see http://wiki.eclipse.org/CLA", false));
+			messages.add(new CommitValidationMessage("", false));
 			throw new CommitValidationException("The author must register with Gerrit.", messages);
 		}		
 		
@@ -132,6 +135,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 				messages.add(new CommitValidationMessage("The author does not have a current Contributor License Agreement (CLA) on file.", true));	
 				messages.add(new CommitValidationMessage("Open your user settings in Gerrit and select \"Agreements\" to create a CLA.", false));	
 				messages.add(new CommitValidationMessage("Please see http://wiki.eclipse.org/CLA", false));
+				messages.add(new CommitValidationMessage("", false));
 				throw new CommitValidationException("A Contributor License Agreement is required.", messages);
 			}
 		}
@@ -145,6 +149,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 				messages.add(new CommitValidationMessage("You are not a project committer.", true));
 				messages.add(new CommitValidationMessage("Only project committers can push on behalf of others.", true));
 				messages.add(new CommitValidationMessage("Please see http://wiki.eclipse.org/CLA", false));
+				messages.add(new CommitValidationMessage("", false));
 				throw new CommitValidationException("You must be a committer to push on behalf of others.", messages);
 				
 			}
