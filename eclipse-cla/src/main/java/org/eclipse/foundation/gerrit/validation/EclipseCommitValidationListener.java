@@ -22,6 +22,7 @@ import com.google.gerrit.extensions.annotations.Listen;
 import com.google.gerrit.reviewdb.client.Account.Id;
 import com.google.gerrit.reviewdb.client.AccountExternalId;
 import com.google.gerrit.reviewdb.client.AccountGroup;
+import com.google.gerrit.reviewdb.client.AuthType;
 import com.google.gerrit.reviewdb.client.AccountGroup.NameKey;
 import com.google.gerrit.reviewdb.client.AccountGroup.UUID;
 import com.google.gerrit.reviewdb.client.Project;
@@ -29,6 +30,7 @@ import com.google.gerrit.server.IdentifiedUser;
 import com.google.gerrit.server.account.AccountException;
 import com.google.gerrit.server.account.AccountManager;
 import com.google.gerrit.server.account.GroupCache;
+import com.google.gerrit.server.args4j.AccountIdHandler;
 import com.google.gerrit.server.events.CommitReceivedEvent;
 import com.google.gerrit.server.git.validators.CommitValidationException;
 import com.google.gerrit.server.git.validators.CommitValidationListener;
@@ -234,7 +236,16 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	 */
 	private IdentifiedUser identifyUser(PersonIdent author) {
 		try {
+			/*
+			 * The gerrit: scheme is, according to documentation on AccountExternalId,
+			 * used for LDAP, HTTP, HTTP_LDAP, and LDAP_BIND usernames (that documentation
+			 * also acknowledges that the choice of name was suboptimal.
+			 * 
+			 * We look up both using mailto: and gerrit:
+			 */
 			Id id = accountManager.lookup(AccountExternalId.SCHEME_MAILTO + author.getEmailAddress());
+			if (id == null) 
+				id = accountManager.lookup(AccountExternalId.SCHEME_GERRIT + author.getEmailAddress());
 			if (id == null) return null;
 			return factory.create(id);
 		} catch (AccountException e) {
