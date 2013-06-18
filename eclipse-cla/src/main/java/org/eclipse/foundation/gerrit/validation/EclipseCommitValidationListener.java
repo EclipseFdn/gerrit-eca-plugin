@@ -132,33 +132,33 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		 */
 		if (isCommitter(author, project)) {
 			messages.add(new CommitValidationMessage("The author is a committer on the project.", false));	
-			addEmptyLine(messages);
 		} else {
 			messages.add(new CommitValidationMessage("The author is not a committer on the project.", false));	
-			addEmptyLine(messages);
 
 			List<String> errors = new ArrayList<String>();
-			if (!hasCurrentAgreement(author)) {
+			if (hasCurrentAgreement(author)) {
+				messages.add(new CommitValidationMessage("The author has a current Contributor License Agreement (CLA) on file.", false));	
+			} else {
 				messages.add(new CommitValidationMessage("The author does not have a current Contributor License Agreement (CLA) on file.", true));	
-				messages.add(new CommitValidationMessage("Open your user settings in Gerrit and select \"Agreements\" to create a CLA.", false));	
-				addDocumentationPointerMessage(messages);
 				addEmptyLine(messages);
 				errors.add("A Contributor License Agreement is required.");
 			}
 			
-			if (!hasSignedOff(author, commit)) {
-				messages.add(new CommitValidationMessage("The author must sign-off on the contribution.", true));
-				messages.add(new CommitValidationMessage("The author must include a \"Signed-off-by\" line in the commit comment.", false));
-				addDocumentationPointerMessage(messages);
-				addEmptyLine(messages);
-				errors.add("The contributor must sign off on the contribution.");
+			if (hasSignedOff(author, commit)) {
+				messages.add(new CommitValidationMessage("The author has \"signed-off\" on the contribution.", false));
+			} else {
+				messages.add(new CommitValidationMessage("The author has not \"signed-off\" on the contribution.", true));
+				errors.add("The contributor must \"sign-off\" on the contribution.");
 			}
 			
 			// TODO Extend exception-throwing delegation to include all possible messages.
 			if (!errors.isEmpty()) {
+				addDocumentationPointerMessage(messages);
 				throw new CommitValidationException(errors.get(0), messages);
 			}
 		}
+		
+		addEmptyLine(messages);
 		
 		/*
 		 * Only committers can push on behalf of other users. Note that, I am asking
@@ -174,6 +174,8 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			}
 		} 
 
+		messages.add(new CommitValidationMessage("This commit passes Eclipse validation.", false));
+		
 		return messages;
 	}
 
