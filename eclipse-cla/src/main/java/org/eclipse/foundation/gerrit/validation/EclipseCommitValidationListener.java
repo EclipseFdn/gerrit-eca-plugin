@@ -14,23 +14,20 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.eclipse.jgit.lib.PersonIdent;
+import org.eclipse.jgit.revwalk.FooterKey;
+import org.eclipse.jgit.revwalk.FooterLine;
 import org.eclipse.jgit.revwalk.RevCommit;
 
-import com.google.gerrit.common.data.Capable;
-import com.google.gerrit.common.data.Permission;
 import com.google.gerrit.extensions.annotations.Listen;
 import com.google.gerrit.reviewdb.client.Account.Id;
 import com.google.gerrit.reviewdb.client.AccountExternalId;
 import com.google.gerrit.reviewdb.client.AccountGroup;
-import com.google.gerrit.reviewdb.client.AuthType;
-import com.google.gerrit.reviewdb.client.AccountGroup.NameKey;
 import com.google.gerrit.reviewdb.client.AccountGroup.UUID;
 import com.google.gerrit.reviewdb.client.Project;
 import com.google.gerrit.server.IdentifiedUser;
 import com.google.gerrit.server.account.AccountException;
 import com.google.gerrit.server.account.AccountManager;
 import com.google.gerrit.server.account.GroupCache;
-import com.google.gerrit.server.args4j.AccountIdHandler;
 import com.google.gerrit.server.events.CommitReceivedEvent;
 import com.google.gerrit.server.git.validators.CommitValidationException;
 import com.google.gerrit.server.git.validators.CommitValidationListener;
@@ -84,6 +81,9 @@ import com.google.inject.Singleton;
 @Listen
 @Singleton
 public class EclipseCommitValidationListener implements CommitValidationListener {
+	private static final String CLA_DOCUMENTATION = "Please see http://wiki.eclipse.org/CLA";
+	private static final String DEFAULT_CLA_GROUP_NAME = "EclipseCLA";
+	
 	@Inject
 	AccountManager accountManager;
 	@Inject
@@ -108,10 +108,10 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		PersonIdent authorIdent = commit.getAuthorIdent();
 		
 		List<CommitValidationMessage> messages = new ArrayList<CommitValidationMessage>();
-		messages.add(new CommitValidationMessage("", false));
+		addSeparatorLine(messages);
 		messages.add(new CommitValidationMessage(String.format("Reviewing commit: %1$s", commit.getId()), false));
 		messages.add(new CommitValidationMessage(String.format("Authored by: %1$s <%2$s>", authorIdent.getName(), authorIdent.getEmailAddress()), false));
-		messages.add(new CommitValidationMessage("", false));
+		addEmptyLine(messages);
 		
 		/*
 		 * The user must have a presence in Gerrit.
@@ -120,25 +120,43 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		if (author == null) {
 			messages.add(new CommitValidationMessage("The author does not have a Gerrit account.", true));
 			messages.add(new CommitValidationMessage("All authors must either be a commiter on the project, or have a current CLA on file.", false));
-			messages.add(new CommitValidationMessage("Please see http://wiki.eclipse.org/CLA", false));
-			messages.add(new CommitValidationMessage("", false));
+			addDocumentationPointerMessage(messages);
+			addEmptyLine(messages);
 			throw new CommitValidationException("The author must register with Gerrit.", messages);
 		}		
 		
 		/*
 		 * A committer can author for their own project. Anybody else
-		 * needs to have a current CLA on file.
+		 * needs to have a current CLA on file and sign-off on the
+		 * commit.
 		 */
 		if (isCommitter(author, project)) {
-			messages.add(new CommitValidationMessage("The author is a committer on the project.", false));			
+			messages.add(new CommitValidationMessage("The author is a committer on the project.", false));	
+			addEmptyLine(messages);
 		} else {
-			messages.add(new CommitValidationMessage("The author is not a committer on the project.", false));		
+			messages.add(new CommitValidationMessage("The author is not a committer on the project.", false));	
+			addEmptyLine(messages);
+
+			List<String> errors = new ArrayList<String>();
 			if (!hasCurrentAgreement(author)) {
 				messages.add(new CommitValidationMessage("The author does not have a current Contributor License Agreement (CLA) on file.", true));	
 				messages.add(new CommitValidationMessage("Open your user settings in Gerrit and select \"Agreements\" to create a CLA.", false));	
-				messages.add(new CommitValidationMessage("Please see http://wiki.eclipse.org/CLA", false));
-				messages.add(new CommitValidationMessage("", false));
-				throw new CommitValidationException("A Contributor License Agreement is required.", messages);
+				addDocumentationPointerMessage(messages);
+				addEmptyLine(messages);
+				errors.add("A Contributor License Agreement is required.");
+			}
+			
+			if (!hasSignedOff(author, commit)) {
+				messages.add(new CommitValidationMessage("The author must sign-off on the contribution.", true));
+				messages.add(new CommitValidationMessage("The author must include a \"Signed-off-by\" line in the commit comment.", false));
+				addDocumentationPointerMessage(messages);
+				addEmptyLine(messages);
+				errors.add("The contributor must sign off on the contribution.");
+			}
+			
+			// TODO Extend exception-throwing delegation to include all possible messages.
+			if (!errors.isEmpty()) {
+				throw new CommitValidationException(errors.get(0), messages);
 			}
 		}
 		
@@ -150,19 +168,45 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			if (!isCommitter(user, project)) {
 				messages.add(new CommitValidationMessage("You are not a project committer.", true));
 				messages.add(new CommitValidationMessage("Only project committers can push on behalf of others.", true));
-				messages.add(new CommitValidationMessage("Please see http://wiki.eclipse.org/CLA", false));
-				messages.add(new CommitValidationMessage("", false));
-				throw new CommitValidationException("You must be a committer to push on behalf of others.", messages);
-				
+				addDocumentationPointerMessage(messages);
+				addEmptyLine(messages);
+				throw new CommitValidationException("You must be a committer to push on behalf of others.", messages);	
 			}
 		} 
-		
-		// TODO consider adding a control to toggle debug mode.
-		// Just reject it, because that's how we roll...
-		// While debugging, it's a bit of a PITA to have to keep creating new commits.
-		//throw new CommitValidationException("Under normal circumstances, you'd be good-to-go, but for testing purposes, your commit has been rejected.", messages);
-		
+
 		return messages;
+	}
+
+	/**
+	 * Answer <code>true</code> if the identified user has signed off on the commit,
+	 * or <code>false</code> otherwise. The user may use any of their identities to
+	 * sign off on the commit (i.e. they can use any email address that is registered
+	 * with Gerrit.
+	 * 
+	 * @param author The Gerrit identity of the author of the commit.
+	 * @param commit The commit.
+	 * @return <code>true</code> if the author has signed off; <code>false</code> otherwise.
+	 */
+	private boolean hasSignedOff(IdentifiedUser author, RevCommit commit) {
+	  for (final FooterLine footer : commit.getFooterLines()) {
+          if (footer.matches(FooterKey.SIGNED_OFF_BY)) {
+            final String email = footer.getEmailAddress();
+            if (author.getEmailAddresses().contains(email)) return true;
+          }
+        }
+		return false;
+	}
+
+	private void addSeparatorLine(List<CommitValidationMessage> messages) {
+		messages.add(new CommitValidationMessage("----------", false));
+	}
+	
+	private void addEmptyLine(List<CommitValidationMessage> messages) {
+		messages.add(new CommitValidationMessage("", false));
+	}
+
+	private void addDocumentationPointerMessage(List<CommitValidationMessage> messages) {
+		messages.add(new CommitValidationMessage(CLA_DOCUMENTATION, false));
 	}
 
 	/**
@@ -191,10 +235,9 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	 */
 	private Iterable<UUID> getEclipseClaGroupIds() {
 		// TODO Make the group identities a configurable setting.
-		// TODO Investigate a means of searching for groups based on a name pattern.
 		List<UUID> groups = new ArrayList<AccountGroup.UUID>();
-		AccountGroup version1 = groupCache.get(new AccountGroup.NameKey("Eclipse-CLA-v1"));
-		if (version1 != null) groups.add(version1.getGroupUUID());
+		AccountGroup claGroup = groupCache.get(new AccountGroup.NameKey(DEFAULT_CLA_GROUP_NAME));
+		if (claGroup != null) groups.add(claGroup.getGroupUUID());
 		return groups;
 	}
 
