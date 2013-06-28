@@ -82,7 +82,7 @@ import com.google.inject.Singleton;
 @Singleton
 public class EclipseCommitValidationListener implements CommitValidationListener {
 	private static final String CLA_DOCUMENTATION = "Please see http://wiki.eclipse.org/CLA";
-	private static final String DEFAULT_CLA_GROUP_NAME = "EclipseCLA";
+	private static final String DEFAULT_CLA_GROUP_NAME = "ldap:cn=eclipsecla,ou=group,dc=eclipse,dc=org";
 	
 	@Inject
 	AccountManager accountManager;
@@ -238,8 +238,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	private Iterable<UUID> getEclipseClaGroupIds() {
 		// TODO Make the group identities a configurable setting.
 		List<UUID> groups = new ArrayList<AccountGroup.UUID>();
-		AccountGroup claGroup = groupCache.get(new AccountGroup.NameKey(DEFAULT_CLA_GROUP_NAME));
-		if (claGroup != null) groups.add(claGroup.getGroupUUID());
+		groups.add(new AccountGroup.UUID(DEFAULT_CLA_GROUP_NAME));
 		return groups;
 	}
 
