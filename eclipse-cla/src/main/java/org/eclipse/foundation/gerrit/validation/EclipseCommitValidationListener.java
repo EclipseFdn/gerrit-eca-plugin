@@ -109,7 +109,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		
 		List<CommitValidationMessage> messages = new ArrayList<CommitValidationMessage>();
 		addSeparatorLine(messages);
-		messages.add(new CommitValidationMessage(String.format("Reviewing commit: %1$s", commit.getId()), false));
+		messages.add(new CommitValidationMessage(String.format("Reviewing commit: %1$s", commit.abbreviate(8).name()), false));
 		messages.add(new CommitValidationMessage(String.format("Authored by: %1$s <%2$s>", authorIdent.getName(), authorIdent.getEmailAddress()), false));
 		addEmptyLine(messages);
 		
