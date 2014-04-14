@@ -1,0 +1,5 @@
+language: java
+before_install:
+    - git clone --depth=50 --branch=stable-2.6 https://gerrit.googlesource.com/gerrit ../../gerrit
+install:
+    - mvn clean install -P\!plugins -Dmaven.test.skip=true -f ../../gerrit/pom.xml
