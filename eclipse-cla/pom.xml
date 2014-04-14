@@ -23,7 +23,7 @@
 
   <properties>
     <Gerrit-ApiType>plugin</Gerrit-ApiType>
-    <Gerrit-ApiVersion>2.6-SNAPSHOT</Gerrit-ApiVersion>
+    <Gerrit-ApiVersion>2.6</Gerrit-ApiVersion>
   </properties>
 
   <build>
