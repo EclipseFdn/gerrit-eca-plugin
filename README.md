@@ -19,3 +19,18 @@ An individual is assumed to be a committer if they have PUSH access to the Gerri
 An individual is assumed to have a CLA on file if they are a member of the CLA group (currently hardcoded; a future version will make this configurable).
 
 For more information, please see [CLAs in the Ecipse Wiki](http://wiki.eclipse.org/CLA).
+
+Troubleshooting
+===============
+
+Push that should otherwise be accepted is being rejected:
+* They may be pushing more than one commit. Compare the commit id from the error message with that of the commit; do they match?  
+
+Individual is a committer, but is being rejected:
+* Is the email address they're committing with the same as the email address in LDAP?
+* Does the corresponding project group have push access on the Gerrit repository?
+
+Individual is not a committer, but has a CLA and is being reject:
+* Is the email address they're committing with the same as the email address in LDAP?
+* Is the individual in the "Has CLA" LDAP group?
+* Is the CLA associated with the right user id?
