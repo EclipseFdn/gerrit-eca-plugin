@@ -260,7 +260,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			 */
 			ProjectControl projectControl = projectControlFactory.controlFor(project.getNameKey(), user);
 			RefControl refControl = projectControl.controlForRef("refs/heads/*");
-			return refControl.canUpdate();
+			return refControl.canSubmit();
 		} catch (NoSuchProjectException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
