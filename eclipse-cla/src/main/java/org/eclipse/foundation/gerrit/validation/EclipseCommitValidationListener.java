@@ -139,7 +139,8 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			if (hasCurrentAgreement(author)) {
 				messages.add(new CommitValidationMessage("The author has a current Contributor License Agreement (CLA) on file.", false));	
 			} else {
-				messages.add(new CommitValidationMessage("The author does not have a current Contributor License Agreement (CLA) on file.", true));	
+				messages.add(new CommitValidationMessage("The author does not have a current Contributor License Agreement (CLA) on file.\n" + 
+				"If there are multiple commits, please ensure that each author has a CLA.", true));	
 				addEmptyLine(messages);
 				errors.add("A Contributor License Agreement is required.");
 			}
@@ -147,7 +148,8 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			if (hasSignedOff(author, commit)) {
 				messages.add(new CommitValidationMessage("The author has \"signed-off\" on the contribution.", false));
 			} else {
-				messages.add(new CommitValidationMessage("The author has not \"signed-off\" on the contribution.", true));
+				messages.add(new CommitValidationMessage("The author has not \"signed-off\" on the contribution.\n" +
+					"If there are multiple commits, please ensure that each commit is signed-off.", true));
 				errors.add("The contributor must \"sign-off\" on the contribution.");
 			}
 			
