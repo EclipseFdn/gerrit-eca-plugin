@@ -27,7 +27,7 @@
 
   <properties>
     <Gerrit-ApiType>plugin</Gerrit-ApiType>
-    <Gerrit-ApiVersion>2.6</Gerrit-ApiVersion>
+    <Gerrit-ApiVersion>2.9</Gerrit-ApiVersion>
   </properties>
 
   <build>
