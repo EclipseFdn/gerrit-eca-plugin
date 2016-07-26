@@ -10,6 +10,7 @@
 *******************************************************************************/
 package org.eclipse.foundation.gerrit.validation;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -263,9 +264,10 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			ProjectControl projectControl = projectControlFactory.controlFor(project.getNameKey(), user);
 			RefControl refControl = projectControl.controlForRef("refs/heads/*");
 			return refControl.canSubmit();
-		} catch (NoSuchProjectException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		} catch (NoSuchProjectException nspe) {
+			nspe.printStackTrace();
+		} catch (IOException ioe) {
+			ioe.printStackTrace();
 		}
 		return false;
 	}
