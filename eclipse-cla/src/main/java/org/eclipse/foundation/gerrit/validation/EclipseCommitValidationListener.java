@@ -293,7 +293,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			 */
 			Id id = accountManager.lookup(AccountExternalId.SCHEME_MAILTO + author.getEmailAddress());
 			if (id == null) 
-				id = accountManager.lookup(AccountExternalId.SCHEME_GERRIT + author.getEmailAddress());
+				id = accountManager.lookup(AccountExternalId.SCHEME_GERRIT + author.getEmailAddress().toLowerCase());
 			if (id == null) return null;
 			return factory.create(id);
 		} catch (AccountException e) {
