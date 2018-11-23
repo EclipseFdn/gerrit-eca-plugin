@@ -10,6 +10,7 @@
 *******************************************************************************/
 package org.eclipse.foundation.gerrit.validation;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -54,14 +55,14 @@ import com.google.inject.Singleton;
  * other project committer;</li>
  * <li>A project committer can push a commit on behalf of a contributor if:
  * <ul>
- * <li>The contributor has a valid CLA at the time of the push; and</li>
+ * <li>The contributor has a valid ECA at the time of the push; and</li>
  * <li>The commit message contains a "Signed-off-by:" statement with credentials
  * matching those of the commit author</li>
  * </ul>
  * </li>
  * <li>A contributor can push a commit if:
  * <ul>
- * <li>They have a valid CLA at the time of the push;</li>
+ * <li>They have a valid ECA at the time of the push;</li>
  * <li>The commit's author credentials match the user identity;</li>
  * <li>The commit message contains a "Signed-off-by:" statement with credentials
  * matching those of the commit author</li>
@@ -69,7 +70,7 @@ import com.google.inject.Singleton;
  * </li>
  * </ul>
  * 
- * <p>There more is information regarding CLA requirements and workflow on the
+ * <p>There more is information regarding ECA requirements and workflow on the
  * <a href="http://wiki.eclipse.org/CLA/Implementation_Requirements">Eclipse Wiki</a>.
  * 
  * <p>
@@ -81,8 +82,8 @@ import com.google.inject.Singleton;
 @Listen
 @Singleton
 public class EclipseCommitValidationListener implements CommitValidationListener {
-	private static final String CLA_DOCUMENTATION = "Please see http://wiki.eclipse.org/CLA";
-	private static final String DEFAULT_CLA_GROUP_NAME = "ldap:cn=eclipsecla,ou=group,dc=eclipse,dc=org";
+	private static final String ECA_DOCUMENTATION = "Please see http://wiki.eclipse.org/ECA";
+	private static final String DEFAULT_ECA_GROUP_NAME = "ldap:cn=eclipsecla,ou=group,dc=eclipse,dc=org";
 	
 	@Inject
 	AccountManager accountManager;
@@ -119,7 +120,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		IdentifiedUser author = identifyUser(authorIdent);
 		if (author == null) {
 			messages.add(new CommitValidationMessage("The author does not have a Gerrit account.", true));
-			messages.add(new CommitValidationMessage("All authors must either be a commiter on the project, or have a current CLA on file.", false));
+			messages.add(new CommitValidationMessage("All authors must either be a commiter on the project, or have a current ECA on file.", false));
 			addDocumentationPointerMessage(messages);
 			addEmptyLine(messages);
 			throw new CommitValidationException("The author must register with Gerrit.", messages);
@@ -127,7 +128,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		
 		/*
 		 * A committer can author for their own project. Anybody else
-		 * needs to have a current CLA on file and sign-off on the
+		 * needs to have a current ECA on file and sign-off on the
 		 * commit.
 		 */
 		if (isCommitter(author, project)) {
@@ -137,12 +138,12 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 
 			List<String> errors = new ArrayList<String>();
 			if (hasCurrentAgreement(author)) {
-				messages.add(new CommitValidationMessage("The author has a current Contributor License Agreement (CLA) on file.", false));	
+				messages.add(new CommitValidationMessage("The author has a current Eclipse Contributor Agreement (ECA) on file.", false));	
 			} else {
-				messages.add(new CommitValidationMessage("The author does not have a current Contributor License Agreement (CLA) on file.\n" + 
-				"If there are multiple commits, please ensure that each author has a CLA.", true));	
+				messages.add(new CommitValidationMessage("The author does not have a current Eclipse Contributor Agreement (ECA) on file.\n" + 
+				"If there are multiple commits, please ensure that each author has a ECA.", true));	
 				addEmptyLine(messages);
-				errors.add("A Contributor License Agreement is required.");
+				errors.add("An Eclipse Contributor Agreement is required.");
 			}
 			
 			if (hasSignedOff(author, commit)) {
@@ -210,7 +211,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	}
 
 	private void addDocumentationPointerMessage(List<CommitValidationMessage> messages) {
-		messages.add(new CommitValidationMessage(CLA_DOCUMENTATION, false));
+		messages.add(new CommitValidationMessage(ECA_DOCUMENTATION, false));
 	}
 
 	/**
@@ -218,7 +219,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	 * Answers whether or not a user has a current committer agreement on file.
 	 * This determination is made based on group membership. Answers
 	 * <code>true</code> if the user is a member of the designated
-	 * &quot;CLA&quot; group, or <code>false</code> otherwise.
+	 * &quot;ECA&quot; group, or <code>false</code> otherwise.
 	 * </p>
 	 * 
 	 * @param user
@@ -232,15 +233,15 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 
 	/**
 	 * Answers a collection containing the UUIDs of groups that contain users
-	 * with valid CLAs. Multiple values are supported since there is potential
+	 * with valid ECAs. Multiple values are supported since there is potential
 	 * that--at some point in the future--we may have multiple versions of the
-	 * CLA. Some period of overlap where both the old and new CLAs are valid
+	 * ECA. Some period of overlap where both the old and new ECAs are valid
 	 * will likely occur in that event.
 	 */
 	private Iterable<UUID> getEclipseClaGroupIds() {
 		// TODO Make the group identities a configurable setting.
 		List<UUID> groups = new ArrayList<AccountGroup.UUID>();
-		groups.add(new AccountGroup.UUID(DEFAULT_CLA_GROUP_NAME));
+		groups.add(new AccountGroup.UUID(DEFAULT_ECA_GROUP_NAME));
 		return groups;
 	}
 
@@ -263,9 +264,10 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			ProjectControl projectControl = projectControlFactory.controlFor(project.getNameKey(), user);
 			RefControl refControl = projectControl.controlForRef("refs/heads/*");
 			return refControl.canSubmit();
-		} catch (NoSuchProjectException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		} catch (NoSuchProjectException nspe) {
+			nspe.printStackTrace();
+		} catch (IOException ioe) {
+			ioe.printStackTrace();
 		}
 		return false;
 	}
