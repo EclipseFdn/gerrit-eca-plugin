@@ -12,32 +12,52 @@ package org.eclipse.foundation.gerrit.validation;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
+import org.eclipse.jgit.lib.AnyObjectId;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
+import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.FooterKey;
 import org.eclipse.jgit.revwalk.FooterLine;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevWalk;
 
+import com.google.common.collect.ImmutableCollection;
 import com.google.gerrit.extensions.annotations.Listen;
+import com.google.gerrit.extensions.api.GerritApi;
+import com.google.gerrit.extensions.common.ChangeInfo;
+import com.google.gerrit.extensions.restapi.RestApiException;
 import com.google.gerrit.reviewdb.client.Account.Id;
 import com.google.gerrit.reviewdb.client.AccountExternalId;
 import com.google.gerrit.reviewdb.client.AccountGroup;
 import com.google.gerrit.reviewdb.client.AccountGroup.UUID;
+import com.google.gerrit.reviewdb.client.Change;
+import com.google.gerrit.reviewdb.client.PatchSet;
 import com.google.gerrit.reviewdb.client.Project;
+import com.google.gerrit.reviewdb.server.ReviewDb;
 import com.google.gerrit.server.IdentifiedUser;
+import com.google.gerrit.server.PatchSetUtil;
 import com.google.gerrit.server.account.AccountException;
 import com.google.gerrit.server.account.AccountManager;
 import com.google.gerrit.server.account.GroupCache;
 import com.google.gerrit.server.events.CommitReceivedEvent;
+import com.google.gerrit.server.git.GitRepositoryManager;
 import com.google.gerrit.server.git.validators.CommitValidationException;
 import com.google.gerrit.server.git.validators.CommitValidationListener;
 import com.google.gerrit.server.git.validators.CommitValidationMessage;
+import com.google.gerrit.server.project.ChangeControl;
 import com.google.gerrit.server.project.NoSuchProjectException;
 import com.google.gerrit.server.project.ProjectControl;
 import com.google.gerrit.server.project.RefControl;
+import com.google.gerrit.server.query.change.ChangeData;
+import com.google.gwtorm.server.OrmException;
 import com.google.inject.Inject;
+import com.google.inject.Provider;
 import com.google.inject.Singleton;
 
 /**
@@ -94,6 +114,16 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	ProjectControl.GenericFactory projectControlFactory;
 	@Inject
 	GroupCache groupCache;
+	@Inject
+	GerritApi gapi;
+	@Inject
+	PatchSetUtil patchsetUtil;
+	@Inject
+	Provider<ReviewDb> db;
+	@Inject
+	ChangeData.Factory cdf;
+	@Inject
+	GitRepositoryManager repoManager;
 
 	/**
 	 * Validate a single commit (this listener will be invoked for each commit in a
@@ -170,17 +200,49 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		 */
 		if (!author.getAccount().equals(user.getAccount())) {
 			if (!isCommitter(user, project)) {
-				messages.add(new CommitValidationMessage("You are not a project committer.", true));
-				messages.add(new CommitValidationMessage("Only project committers can push on behalf of others.", true));
-				addDocumentationPointerMessage(messages);
-				addEmptyLine(messages);
-				throw new CommitValidationException("You must be a committer to push on behalf of others.", messages);
+				if (!getPreviousPatchsetAuthors(project, commit).contains(author)) {
+					messages.add(new CommitValidationMessage("You are not a project committer.", true));
+					messages.add(new CommitValidationMessage("Only project committers can push on behalf of others.", true));
+					addDocumentationPointerMessage(messages);
+					addEmptyLine(messages);
+					throw new CommitValidationException("You must be a committer to push on behalf of others or keep author of previous patchsets.",
+							messages);
+				}
 			}
 		}
 
 		messages.add(new CommitValidationMessage("This commit passes Eclipse validation.", false));
 
 		return messages;
+	}
+
+	private Set<IdentifiedUser> getPreviousPatchsetAuthors(Project project, RevCommit commit) {
+		Set<IdentifiedUser> authors = new HashSet<>();
+		try {
+			List<ChangeInfo> cis = gapi.changes().query(commit.getName()).get();
+			ChangeInfo info = cis.get(0);
+			ChangeData cd = cdf.create(db.get(), project.getNameKey(), new Change.Id(info._number));
+			ChangeControl changeControl = cd.changeControl();
+			Repository repo = repoManager.openRepository(project.getNameKey());
+			try (RevWalk rw = new RevWalk(repo)) {
+				ImmutableCollection<PatchSet> patchSets = patchsetUtil.byChange(db.get(), changeControl.getNotes());
+				for (PatchSet p : patchSets) {
+					AnyObjectId commitId = ObjectId.fromString(p.getRevision().get());
+					RevCommit c = rw.parseCommit(commitId);
+					if (c.equals(commit)) {
+						continue;
+					}
+					IdentifiedUser u = identifyUser(c.getAuthorIdent());
+					if (u != null) {
+						authors.add(u);
+					}
+				}
+			}
+		} catch (RestApiException | OrmException | IOException e) {
+			// TODO log error
+			return Collections.emptySet();
+		}
+		return authors;
 	}
 
 	/**
