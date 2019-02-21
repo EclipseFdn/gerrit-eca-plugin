@@ -13,6 +13,7 @@ package org.eclipse.foundation.gerrit.validation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.FooterKey;
@@ -258,12 +259,12 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	private boolean isCommitter(IdentifiedUser user, Project project) {
 		try {
 			/*
-			 * We assume that an individual is a committer if they can push to
+			 * We assume that an individual is a committer if they can submit changes pushed to
 			 * the project.
 			 */
 			ProjectControl projectControl = projectControlFactory.controlFor(project.getNameKey(), user);
 			RefControl refControl = projectControl.controlForRef("refs/heads/*");
-			return refControl.canSubmit();
+			return refControl.canSubmit(true);
 		} catch (NoSuchProjectException nspe) {
 			nspe.printStackTrace();
 		} catch (IOException ioe) {
@@ -291,11 +292,11 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			 *
 			 * We look up both using mailto: and gerrit:
 			 */
-			Id id = accountManager.lookup(AccountExternalId.SCHEME_MAILTO + author.getEmailAddress());
-			if (id == null)
+			Optional<Id> id = accountManager.lookup(AccountExternalId.SCHEME_MAILTO + author.getEmailAddress());
+			if (!id.isPresent())
 				id = accountManager.lookup(AccountExternalId.SCHEME_GERRIT + author.getEmailAddress().toLowerCase());
-			if (id == null) return null;
-			return factory.create(id);
+			if (!id.isPresent()) return null;
+			return factory.create(id.get());
 		} catch (AccountException e) {
 			return null;
 		}
