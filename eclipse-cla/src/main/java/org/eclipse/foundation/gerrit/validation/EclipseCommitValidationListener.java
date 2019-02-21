@@ -45,11 +45,11 @@ import com.google.inject.Singleton;
  * ensure that commits made against Eclipse Gerrit meet contribution tracking
  * requirements.
  * </p>
- * 
+ *
  * <p>
  * To summarize:
  * </p>
- * 
+ *
  * <ul>
  * <li>A project committer can push a commit on behalf of themselves or any
  * other project committer;</li>
@@ -69,13 +69,13 @@ import com.google.inject.Singleton;
  * </ul>
  * </li>
  * </ul>
- * 
+ *
  * <p>There more is information regarding ECA requirements and workflow on the
  * <a href="http://wiki.eclipse.org/CLA/Implementation_Requirements">Eclipse Wiki</a>.
- * 
+ *
  * <p>
  * The CommitValidationListener is not defined as part of the extension API,
- * which means that we need to build this as a version-sensitive 
+ * which means that we need to build this as a version-sensitive
  * <a href="http://gerrit-documentation.googlecode.com/svn/Documentation/2.6/dev-plugins.html">Gerrit plugin</a>.
  * </p>
  */
@@ -84,7 +84,7 @@ import com.google.inject.Singleton;
 public class EclipseCommitValidationListener implements CommitValidationListener {
 	private static final String ECA_DOCUMENTATION = "Please see http://wiki.eclipse.org/ECA";
 	private static final String DEFAULT_ECA_GROUP_NAME = "ldap:cn=eclipsecla,ou=group,dc=eclipse,dc=org";
-	
+
 	@Inject
 	AccountManager accountManager;
 	@Inject
@@ -93,13 +93,13 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	ProjectControl.GenericFactory projectControlFactory;
 	@Inject
 	GroupCache groupCache;
-	
+
 	/**
 	 * Validate a single commit (this listener will be invoked for each commit in a
 	 * push operation).
 	 */
 	@Override
-	public List<CommitValidationMessage> onCommitReceived(CommitReceivedEvent receiveEvent) 
+	public List<CommitValidationMessage> onCommitReceived(CommitReceivedEvent receiveEvent)
 			throws CommitValidationException {
 
 		IdentifiedUser user = receiveEvent.user;
@@ -107,13 +107,13 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 
 		RevCommit commit = receiveEvent.commit;
 		PersonIdent authorIdent = commit.getAuthorIdent();
-		
+
 		List<CommitValidationMessage> messages = new ArrayList<CommitValidationMessage>();
 		addSeparatorLine(messages);
 		messages.add(new CommitValidationMessage(String.format("Reviewing commit: %1$s", commit.abbreviate(8).name()), false));
 		messages.add(new CommitValidationMessage(String.format("Authored by: %1$s <%2$s>", authorIdent.getName(), authorIdent.getEmailAddress()), false));
 		addEmptyLine(messages);
-		
+
 		/*
 		 * The user must have a presence in Gerrit.
 		 */
@@ -124,28 +124,28 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			addDocumentationPointerMessage(messages);
 			addEmptyLine(messages);
 			throw new CommitValidationException("The author must register with Gerrit.", messages);
-		}		
-		
+		}
+
 		/*
 		 * A committer can author for their own project. Anybody else
 		 * needs to have a current ECA on file and sign-off on the
 		 * commit.
 		 */
 		if (isCommitter(author, project)) {
-			messages.add(new CommitValidationMessage("The author is a committer on the project.", false));	
+			messages.add(new CommitValidationMessage("The author is a committer on the project.", false));
 		} else {
-			messages.add(new CommitValidationMessage("The author is not a committer on the project.", false));	
+			messages.add(new CommitValidationMessage("The author is not a committer on the project.", false));
 
 			List<String> errors = new ArrayList<String>();
 			if (hasCurrentAgreement(author)) {
-				messages.add(new CommitValidationMessage("The author has a current Eclipse Contributor Agreement (ECA) on file.", false));	
+				messages.add(new CommitValidationMessage("The author has a current Eclipse Contributor Agreement (ECA) on file.", false));
 			} else {
-				messages.add(new CommitValidationMessage("The author does not have a current Eclipse Contributor Agreement (ECA) on file.\n" + 
-				"If there are multiple commits, please ensure that each author has a ECA.", true));	
+				messages.add(new CommitValidationMessage("The author does not have a current Eclipse Contributor Agreement (ECA) on file.\n" +
+				"If there are multiple commits, please ensure that each author has a ECA.", true));
 				addEmptyLine(messages);
 				errors.add("An Eclipse Contributor Agreement is required.");
 			}
-			
+
 			if (hasSignedOff(author, commit)) {
 				messages.add(new CommitValidationMessage("The author has \"signed-off\" on the contribution.", false));
 			} else {
@@ -153,16 +153,16 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 					"If there are multiple commits, please ensure that each commit is signed-off.", true));
 				errors.add("The contributor must \"sign-off\" on the contribution.");
 			}
-			
+
 			// TODO Extend exception-throwing delegation to include all possible messages.
 			if (!errors.isEmpty()) {
 				addDocumentationPointerMessage(messages);
 				throw new CommitValidationException(errors.get(0), messages);
 			}
 		}
-		
+
 		addEmptyLine(messages);
-		
+
 		/*
 		 * Only committers can push on behalf of other users. Note that, I am asking
 		 * if the user (i.e. the person who is doing the actual push) is a committer.
@@ -173,12 +173,12 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 				messages.add(new CommitValidationMessage("Only project committers can push on behalf of others.", true));
 				addDocumentationPointerMessage(messages);
 				addEmptyLine(messages);
-				throw new CommitValidationException("You must be a committer to push on behalf of others.", messages);	
+				throw new CommitValidationException("You must be a committer to push on behalf of others.", messages);
 			}
-		} 
+		}
 
 		messages.add(new CommitValidationMessage("This commit passes Eclipse validation.", false));
-		
+
 		return messages;
 	}
 
@@ -187,7 +187,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	 * or <code>false</code> otherwise. The user may use any of their identities to
 	 * sign off on the commit (i.e. they can use any email address that is registered
 	 * with Gerrit.
-	 * 
+	 *
 	 * @param author The Gerrit identity of the author of the commit.
 	 * @param commit The commit.
 	 * @return <code>true</code> if the author has signed off; <code>false</code> otherwise.
@@ -205,7 +205,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	private void addSeparatorLine(List<CommitValidationMessage> messages) {
 		messages.add(new CommitValidationMessage("----------", false));
 	}
-	
+
 	private void addEmptyLine(List<CommitValidationMessage> messages) {
 		messages.add(new CommitValidationMessage("", false));
 	}
@@ -221,7 +221,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	 * <code>true</code> if the user is a member of the designated
 	 * &quot;ECA&quot; group, or <code>false</code> otherwise.
 	 * </p>
-	 * 
+	 *
 	 * @param user
 	 *            a Gerrit user.
 	 * @return <code>true</code> if the user has a current agreement, or
@@ -248,9 +248,9 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	/**
 	 * Answers whether or not the user can push to the project. Note that
 	 * this is a project in the Gerrit sense, not the Eclipse sense; we
-	 * assume that any user who is authorized to push to the project 
+	 * assume that any user who is authorized to push to the project
 	 * repository is a committer.
-	 * 
+	 *
 	 * @param user
 	 * @param project
 	 * @return
@@ -276,7 +276,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	 * Answers the Gerrit identity (instance of IdentifiedUser) associated with
 	 * the author credentials, or <code>null</code> if the user cannot be
 	 * matched to a Gerrit user identity.
-	 * 
+	 *
 	 * @param author
 	 *            Object representation of user credentials of a Git commit.
 	 * @return an instance of IdentifiedUser or <code>null</code> if the user
@@ -288,11 +288,11 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			 * The gerrit: scheme is, according to documentation on AccountExternalId,
 			 * used for LDAP, HTTP, HTTP_LDAP, and LDAP_BIND usernames (that documentation
 			 * also acknowledges that the choice of name was suboptimal.
-			 * 
+			 *
 			 * We look up both using mailto: and gerrit:
 			 */
 			Id id = accountManager.lookup(AccountExternalId.SCHEME_MAILTO + author.getEmailAddress());
-			if (id == null) 
+			if (id == null)
 				id = accountManager.lookup(AccountExternalId.SCHEME_GERRIT + author.getEmailAddress().toLowerCase());
 			if (id == null) return null;
 			return factory.create(id);
