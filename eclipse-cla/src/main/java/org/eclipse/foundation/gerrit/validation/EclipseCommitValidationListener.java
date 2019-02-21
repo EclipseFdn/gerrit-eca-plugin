@@ -60,11 +60,11 @@ import retrofit2.Response;
  * ensure that commits made against Eclipse Gerrit meet contribution tracking
  * requirements.
  * </p>
- * 
+ *
  * <p>
  * To summarize:
  * </p>
- * 
+ *
  * <ul>
  * <li>A project committer can push a commit on behalf of themselves or any
  * other project committer;</li>
@@ -84,13 +84,13 @@ import retrofit2.Response;
  * </ul>
  * </li>
  * </ul>
- * 
+ *
  * <p>There more is information regarding ECA requirements and workflow on the
  * <a href="http://wiki.eclipse.org/CLA/Implementation_Requirements">Eclipse Wiki</a>.
- * 
+ *
  * <p>
  * The CommitValidationListener is not defined as part of the extension API,
- * which means that we need to build this as a version-sensitive 
+ * which means that we need to build this as a version-sensitive
  * <a href="http://gerrit-documentation.googlecode.com/svn/Documentation/2.6/dev-plugins.html">Gerrit plugin</a>.
  * </p>
  */
@@ -154,7 +154,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		messages.add(new CommitValidationMessage(String.format("Reviewing commit: %1$s", commit.abbreviate(8).name()), false));
 		messages.add(new CommitValidationMessage(String.format("Authored by: %1$s <%2$s>", authorIdent.getName(), authorIdent.getEmailAddress()), false));
 		addEmptyLine(messages);
-		
+
 		/*
 		 * Retrieve the authors Gerrit identity if it exists
 		 */
@@ -197,9 +197,9 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 				throw new CommitValidationException(errors.get(0), messages);
 			}
 		}
-		
+
 		addEmptyLine(messages);
-		
+
 		/*
 		 * Only committers can push on behalf of other users. Note that, I am asking
 		 * if the user (i.e. the person who is doing the actual push) is a committer.
@@ -210,12 +210,12 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 				messages.add(new CommitValidationMessage("Only project committers can push on behalf of others.", true));
 				addDocumentationPointerMessage(messages);
 				addEmptyLine(messages);
-				throw new CommitValidationException("You must be a committer to push on behalf of others.", messages);	
+				throw new CommitValidationException("You must be a committer to push on behalf of others.", messages);
 			}
-		} 
+		}
 
 		messages.add(new CommitValidationMessage("This commit passes Eclipse validation.", false));
-		
+
 		return messages;
 	}
 
@@ -248,7 +248,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	private void addSeparatorLine(List<CommitValidationMessage> messages) {
 		messages.add(new CommitValidationMessage("----------", false));
 	}
-	
+
 	private void addEmptyLine(List<CommitValidationMessage> messages) {
 		messages.add(new CommitValidationMessage("", false));
 	}
@@ -349,7 +349,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	 * this is a project in the Gerrit sense, not the Eclipse sense; we
 	 * assume that any user who is authorized to push to the project 
 	 * repository is a committer.
-	 * 
+	 *
 	 * @param user
 	 * @param project
 	 * @return
@@ -375,7 +375,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	 * Answers the Gerrit identity (instance of IdentifiedUser) associated with
 	 * the author credentials, or <code>Optional.empty()</code> if the user cannot be
 	 * matched to a Gerrit user identity.
-	 * 
+	 *
 	 * @param author
 	 *            Object representation of user credentials of a Git commit.
 	 * @return an instance of IdentifiedUser or <code>null</code> if the user
@@ -387,7 +387,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			 * The gerrit: scheme is, according to documentation on AccountExternalId,
 			 * used for LDAP, HTTP, HTTP_LDAP, and LDAP_BIND usernames (that documentation
 			 * also acknowledges that the choice of name was suboptimal.
-			 * 
+			 *
 			 * We look up both using mailto: and gerrit:
 			 */
 			Optional<Id> id = accountManager.lookup(AccountExternalId.SCHEME_MAILTO + author.getEmailAddress());
