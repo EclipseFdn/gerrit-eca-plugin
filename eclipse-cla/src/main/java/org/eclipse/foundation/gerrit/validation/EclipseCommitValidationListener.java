@@ -52,8 +52,6 @@ import com.google.gerrit.server.project.RefControl;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 
-import retrofit2.Response;
-
 /**
  * <p>
  * The EclipseCommitValidationListener implements CommitValidationListener to
@@ -120,6 +118,16 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	ProjectControl.GenericFactory projectControlFactory;
 	@Inject
 	GroupCache groupCache;
+	@Inject
+	GerritApi gapi;
+	@Inject
+	PatchSetUtil patchsetUtil;
+	@Inject
+	Provider<ReviewDb> db;
+	@Inject
+	ChangeData.Factory cdf;
+	@Inject
+	GitRepositoryManager repoManager;
 	
 	private final APIService apiService;
 
@@ -171,18 +179,18 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		if (author.isPresent() && isCommitter(author.get(), project)) {
 			messages.add(new CommitValidationMessage("The author is a committer on the project.", false));	
 		} else {
-			messages.add(new CommitValidationMessage("The author is not a committer on the project.", false));	
+			messages.add(new CommitValidationMessage("The author is not a committer on the project.", false));
 
 			List<String> errors = new ArrayList<String>();
 			if (hasCurrentAgreement(authorIdent, author)) {
 				messages.add(new CommitValidationMessage("The author has a current Eclipse Contributor Agreement (ECA) on file.", false));	
 			} else {
-				messages.add(new CommitValidationMessage("The author does not have a current Eclipse Contributor Agreement (ECA) on file.\n" + 
-				"If there are multiple commits, please ensure that each author has a ECA.", true));	
+				messages.add(new CommitValidationMessage("The author does not have a current Eclipse Contributor Agreement (ECA) on file.\n" +
+				"If there are multiple commits, please ensure that each author has a ECA.", true));
 				addEmptyLine(messages);
 				errors.add("An Eclipse Contributor Agreement is required.");
 			}
-			
+
 			if (hasSignedOff(authorIdent, author, commit)) {
 				messages.add(new CommitValidationMessage("The author has \"signed-off\" on the contribution.", false));
 			} else {
@@ -190,7 +198,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 					"If there are multiple commits, please ensure that each commit is signed-off.", true));
 				errors.add("The contributor must \"sign-off\" on the contribution.");
 			}
-			
+
 			// TODO Extend exception-throwing delegation to include all possible messages.
 			if (!errors.isEmpty()) {
 				addDocumentationPointerMessage(messages);
@@ -217,6 +225,35 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		messages.add(new CommitValidationMessage("This commit passes Eclipse validation.", false));
 
 		return messages;
+	}
+
+	private Set<IdentifiedUser> getPreviousPatchsetAuthors(Project project, RevCommit commit) {
+		Set<IdentifiedUser> authors = new HashSet<>();
+		try {
+			List<ChangeInfo> cis = gapi.changes().query(commit.getName()).get();
+			ChangeInfo info = cis.get(0);
+			ChangeData cd = cdf.create(db.get(), project.getNameKey(), new Change.Id(info._number));
+			ChangeControl changeControl = cd.changeControl();
+			Repository repo = repoManager.openRepository(project.getNameKey());
+			try (RevWalk rw = new RevWalk(repo)) {
+				ImmutableCollection<PatchSet> patchSets = patchsetUtil.byChange(db.get(), changeControl.getNotes());
+				for (PatchSet p : patchSets) {
+					AnyObjectId commitId = ObjectId.fromString(p.getRevision().get());
+					RevCommit c = rw.parseCommit(commitId);
+					if (c.equals(commit)) {
+						continue;
+					}
+					IdentifiedUser u = identifyUser(c.getAuthorIdent());
+					if (u != null) {
+						authors.add(u);
+					}
+				}
+			}
+		} catch (RestApiException | OrmException | IOException e) {
+			// TODO log error
+			return Collections.emptySet();
+		}
+		return authors;
 	}
 
 	/**
@@ -391,7 +428,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			 * We look up both using mailto: and gerrit:
 			 */
 			Optional<Id> id = accountManager.lookup(AccountExternalId.SCHEME_MAILTO + author.getEmailAddress());
-			if (!id.isPresent()) 
+			if (!id.isPresent())
 				id = accountManager.lookup(AccountExternalId.SCHEME_GERRIT + author.getEmailAddress().toLowerCase());
 			if (!id.isPresent()) return Optional.empty();
 			return Optional.of(factory.create(id.get()));
