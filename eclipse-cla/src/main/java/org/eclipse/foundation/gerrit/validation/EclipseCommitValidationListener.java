@@ -13,6 +13,15 @@ package org.eclipse.foundation.gerrit.validation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.FooterKey;
@@ -29,6 +38,8 @@ import com.google.gerrit.server.IdentifiedUser;
 import com.google.gerrit.server.account.AccountException;
 import com.google.gerrit.server.account.AccountManager;
 import com.google.gerrit.server.account.GroupCache;
+import com.google.gerrit.server.config.PluginConfig;
+import com.google.gerrit.server.config.PluginConfigFactory;
 import com.google.gerrit.server.events.CommitReceivedEvent;
 import com.google.gerrit.server.git.validators.CommitValidationException;
 import com.google.gerrit.server.git.validators.CommitValidationListener;
@@ -38,6 +49,8 @@ import com.google.gerrit.server.project.ProjectControl;
 import com.google.gerrit.server.project.RefControl;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
+
+import retrofit2.Response;
 
 /**
  * <p>
@@ -82,8 +95,17 @@ import com.google.inject.Singleton;
 @Listen
 @Singleton
 public class EclipseCommitValidationListener implements CommitValidationListener {
+	private static final String PLUGIN_NAME = "eca-validation";
+
+	private static final String CFG__GRANT_TYPE = "grantType";
+	private static final String CFG__GRANT_TYPE_DEFAULT = "client_credentials";
+	private static final String CFG__SCOPE = "scope";
+	private static final String CFG__SCOPE_DEFAULT = "eclipsefdn_view_all_profiles";
+	private static final String CFG__CLIENT_SECRET = "client_secret";
+	private static final String CFG__CLIENT_ID = "clientId";
+	
 	private static final String ECA_DOCUMENTATION = "Please see http://wiki.eclipse.org/ECA";
-	private static final String DEFAULT_ECA_GROUP_NAME = "ldap:cn=eclipsecla,ou=group,dc=eclipse,dc=org";
+	private static final String DEFAULT_ECA_LDAP_GROUP = "ldap:cn=eclipsecla,ou=group,dc=eclipse,dc=org";
 	
 	@Inject
 	AccountManager accountManager;
@@ -93,6 +115,23 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	ProjectControl.GenericFactory projectControlFactory;
 	@Inject
 	GroupCache groupCache;
+	@Inject
+	private PluginConfigFactory cfg;
+	
+	private final APIService apiService;
+
+	private final String ecaLdapGroupName;
+	
+	public EclipseCommitValidationListener() {
+		PluginConfig config = cfg.getFromGerritConfig(PLUGIN_NAME);
+		RetrofitFactory retrofitFactory = new RetrofitFactory(
+				config.getString(CFG__GRANT_TYPE, CFG__GRANT_TYPE_DEFAULT), 
+				config.getString(CFG__CLIENT_ID), 
+				config.getString(CFG__CLIENT_SECRET), 
+				config.getString(CFG__SCOPE, CFG__SCOPE_DEFAULT));
+		this.apiService = retrofitFactory.newService(APIService.BASE_URL, APIService.class);
+		this.ecaLdapGroupName = config.getString("ldap", DEFAULT_ECA_LDAP_GROUP);
+	}
 	
 	/**
 	 * Validate a single commit (this listener will be invoked for each commit in a
@@ -216,19 +255,56 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 
 	/**
 	 * <p>
-	 * Answers whether or not a user has a current committer agreement on file.
-	 * This determination is made based on group membership. Answers
-	 * <code>true</code> if the user is a member of the designated
-	 * &quot;ECA&quot; group, or <code>false</code> otherwise.
+	 * Answers whether or not a user has a current committer agreement on file. This
+	 * determination is made based on group membership. Answers <code>true</code> if
+	 * the user is a member of the designated &quot;ECA&quot; group, or
+	 * <code>false</code> otherwise.
 	 * </p>
 	 * 
-	 * @param user
-	 *            a Gerrit user.
+	 * @param user a Gerrit user.
 	 * @return <code>true</code> if the user has a current agreement, or
 	 *         <code>false</code> otherwise.
+	 * @throws CommitValidationException 
+	 * @throws IOException
 	 */
-	private boolean hasCurrentAgreement(IdentifiedUser user) {
-		return user.getEffectiveGroups().containsAnyOf(getEclipseClaGroupIds());
+	private boolean hasCurrentAgreement(IdentifiedUser user) throws CommitValidationException {
+		return user.getEffectiveGroups().containsAnyOf(getEclipseClaGroupIds()) 
+				|| hasCurrentAgreementOnServer(user);
+	}
+
+	private boolean hasCurrentAgreementOnServer(IdentifiedUser user) throws CommitValidationException {
+		try {
+			Response<ECA> eca = this.apiService.eca(user.getUserName()).get();
+			if (eca.isSuccessful()) {
+				return eca.body().signed();
+			} else {
+				Set<String> emailAddresses = user.getEmailAddresses();
+				List<CompletableFuture<Response<List<UserAccount>>>> searches = emailAddresses.stream()
+						.map(email -> this.apiService.search(null, null, email))
+						.collect(Collectors.toList());
+				
+				return anyMatch(searches, e -> e.isSuccessful() && e.body().stream().anyMatch(a -> a.eca().signed()))
+						.get().booleanValue();
+			}
+		} catch (ExecutionException e) {
+			throw new CommitValidationException("An error happened while checking if user has a signed agreement", e);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new CommitValidationException("Verification whether user has a signed agreement has been interrupted", e);
+		}
+	}
+	
+	static <T> CompletableFuture<Boolean> anyMatch(List<? extends CompletionStage<? extends T>> l, Predicate<? super T> criteria) {
+		CompletableFuture<Boolean> result = new CompletableFuture<>();
+		Consumer<T> whenMatching = v -> {
+			if (criteria.test(v))
+				result.complete(Boolean.TRUE);
+		};
+		CompletableFuture.allOf(l.stream()
+				.map(f -> f.thenAccept(whenMatching)).toArray(CompletableFuture<?>[]::new))
+				.whenComplete((ignored, t) -> result.completeExceptionally(t != null ? t : new NoSuchElementException()));
+		
+		return result;
 	}
 
 	/**
@@ -239,9 +315,8 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	 * will likely occur in that event.
 	 */
 	private Iterable<UUID> getEclipseClaGroupIds() {
-		// TODO Make the group identities a configurable setting.
-		List<UUID> groups = new ArrayList<AccountGroup.UUID>();
-		groups.add(new AccountGroup.UUID(DEFAULT_ECA_GROUP_NAME));
+		List<UUID> groups = new ArrayList<>();
+		groups.add(new AccountGroup.UUID(this.ecaLdapGroupName));
 		return groups;
 	}
 
@@ -263,7 +338,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			 */
 			ProjectControl projectControl = projectControlFactory.controlFor(project.getNameKey(), user);
 			RefControl refControl = projectControl.controlForRef("refs/heads/*");
-			return refControl.canSubmit();
+			return refControl.canSubmit(true);
 		} catch (NoSuchProjectException nspe) {
 			nspe.printStackTrace();
 		} catch (IOException ioe) {
@@ -291,11 +366,11 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			 * 
 			 * We look up both using mailto: and gerrit:
 			 */
-			Id id = accountManager.lookup(AccountExternalId.SCHEME_MAILTO + author.getEmailAddress());
-			if (id == null) 
+			Optional<Id> id = accountManager.lookup(AccountExternalId.SCHEME_MAILTO + author.getEmailAddress());
+			if (!id.isPresent()) 
 				id = accountManager.lookup(AccountExternalId.SCHEME_GERRIT + author.getEmailAddress().toLowerCase());
-			if (id == null) return null;
-			return factory.create(id);
+			if (!id.isPresent()) return null;
+			return factory.create(id.get());
 		} catch (AccountException e) {
 			return null;
 		}
