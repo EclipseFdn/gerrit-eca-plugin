@@ -13,6 +13,9 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 class AccessTokenProvider {
 
 	private final AccountsService accountsService;
@@ -21,6 +24,8 @@ class AccessTokenProvider {
 	private final String clientSecret;
 	private final String scope;
 	private Optional<AccessToken> cachedToken;
+	
+	private static final Logger log = LoggerFactory.getLogger(AccessTokenProvider.class); 
 	
 	public AccessTokenProvider(AccountsService accountsService, String grantType, String clientId, String clientSecret, String scope) {
 		this.accountsService = accountsService;
@@ -32,16 +37,17 @@ class AccessTokenProvider {
 	}
 	
 	Optional<AccessToken> refreshToken() {
-		cachedToken = getTokenFromServer();
+		this.cachedToken = getTokenFromServer();
 		return token();
 	}
 	
 	Optional<AccessToken> token() {
-		return cachedToken;
+		return this.cachedToken;
 	}
 
 	private Optional<AccessToken> getTokenFromServer() {
-		CompletableFuture<AccessToken> credentials = accountsService.postCredentials(grantType, clientId, clientSecret, scope);
+		log.info("Getting new token from server " + AccountsService.BASE_URL);
+		CompletableFuture<AccessToken> credentials = this.accountsService.postCredentials(this.grantType, this.clientId, this.clientSecret, this.scope);
 		try {
 			return Optional.ofNullable(credentials.get());
 		} catch (InterruptedException | ExecutionException e) {

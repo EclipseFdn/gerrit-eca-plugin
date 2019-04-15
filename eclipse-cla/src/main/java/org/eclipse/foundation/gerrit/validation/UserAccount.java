@@ -9,8 +9,6 @@
 **********************************************************************/
 package org.eclipse.foundation.gerrit.validation;
 
-import java.util.Optional;
-
 import javax.annotation.Nullable;
 
 import com.google.auto.value.AutoValue;

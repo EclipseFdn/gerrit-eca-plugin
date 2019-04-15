@@ -27,6 +27,8 @@ import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.FooterKey;
 import org.eclipse.jgit.revwalk.FooterLine;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.gerrit.extensions.annotations.Listen;
 import com.google.gerrit.reviewdb.client.Account.Id;
@@ -108,6 +110,8 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	
 	private static final String ECA_DOCUMENTATION = "Please see http://wiki.eclipse.org/ECA";
 	private static final String DEFAULT_ECA_LDAP_GROUP = "ldap:cn=eclipsecla,ou=group,dc=eclipse,dc=org";
+	
+	static final Logger log = LoggerFactory.getLogger(EclipseCommitValidationListener.class);
 	
 	@Inject
 	AccountManager accountManager;
@@ -269,8 +273,22 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	 * @throws IOException
 	 */
 	private boolean hasCurrentAgreement(IdentifiedUser user) throws CommitValidationException {
-		return user.getEffectiveGroups().containsAnyOf(getEclipseClaGroupIds()) 
-				|| hasCurrentAgreementOnServer(user);
+		if (user.getEffectiveGroups().containsAnyOf(getEclipseClaGroupIds())) {
+			log.info("User '" + user.getUserName() + "' is considered having an agreement as being part of the LDAP group '" + this.ecaLdapGroupName + "'");
+			return true;
+		} else { 
+			log.info("User '" + user.getUserName() + "' is not part of the LDAP group '" + this.ecaLdapGroupName + "'");
+		}
+		
+		if (hasCurrentAgreementOnServer(user)) {
+			log.info("User '" + user.getUserName() + "' is considered having an agreement by " + APIService.BASE_URL);
+			return true;
+		} else {
+			log.info("User '" + user.getUserName() + "' is not considered having an agreement by " + APIService.BASE_URL);
+		}
+		
+		log.info("User '" + user.getUserName() + "' is *not* considered having any agreement");
+		return false;
 	}
 
 	private boolean hasCurrentAgreementOnServer(IdentifiedUser user) throws CommitValidationException {
@@ -279,6 +297,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			if (eca.isSuccessful()) {
 				return eca.body().signed();
 			} else {
+				// Start a request for all emails, if any match, considered the user having an agreement
 				Set<String> emailAddresses = user.getEmailAddresses();
 				List<CompletableFuture<Response<List<UserAccount>>>> searches = emailAddresses.stream()
 						.map(email -> this.apiService.search(null, null, email))
@@ -288,8 +307,10 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 						.get().booleanValue();
 			}
 		} catch (ExecutionException e) {
+			log.error(e.getMessage(), e);
 			throw new CommitValidationException("An error happened while checking if user has a signed agreement", e);
 		} catch (InterruptedException e) {
+			log.error(e.getMessage(), e);
 			Thread.currentThread().interrupt();
 			throw new CommitValidationException("Verification whether user has a signed agreement has been interrupted", e);
 		}

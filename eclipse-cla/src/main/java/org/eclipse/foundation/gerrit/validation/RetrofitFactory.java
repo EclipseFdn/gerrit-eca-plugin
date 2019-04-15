@@ -10,6 +10,7 @@
 package org.eclipse.foundation.gerrit.validation;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.concurrent.Executors;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -17,10 +18,13 @@ import java.util.concurrent.TimeUnit;
 
 import com.squareup.moshi.Moshi;
 
+import okhttp3.ConnectionSpec;
 import okhttp3.Dispatcher;
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.internal.Util;
+import okhttp3.logging.HttpLoggingInterceptor;
+import okhttp3.logging.HttpLoggingInterceptor.Level;
 import retrofit2.Retrofit;
 import retrofit2.converter.moshi.MoshiConverterFactory;
 
@@ -35,10 +39,21 @@ final class RetrofitFactory {
 				.build();
 		this.moshiConverterFactory = MoshiConverterFactory.create(moshi);
 
+		HttpLoggingInterceptor loggingInterceptor = new HttpLoggingInterceptor(new HttpLoggingInterceptor.Logger() {
+			@Override
+			public void log(String message) {
+				EclipseCommitValidationListener.log.debug(message);
+			}
+		}).setLevel(Level.BASIC);
+		loggingInterceptor.redactHeader(OAuthAuthenticator.AUTHORIZATION);
+		
 		OkHttpClient baseClient = new OkHttpClient.Builder()
 				.callTimeout(Duration.ofSeconds(5))
 				.dispatcher(new Dispatcher(new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60, TimeUnit.SECONDS,
 	          new SynchronousQueue<>(), Util.threadFactory("OkHttp Dispatcher", true))))
+				.addInterceptor(loggingInterceptor)
+				// Workaround for IBM JVM compatibility (COMPATIBLE_TLS is the only profile including TLS_1_0)
+				.connectionSpecs(Arrays.asList(ConnectionSpec.COMPATIBLE_TLS, ConnectionSpec.CLEARTEXT))
 				.build();
 		AccountsService accountsService =  newRetrofit(AccountsService.BASE_URL, baseClient).create(AccountsService.class);
 		AccessTokenProvider accessTokenProvider = new AccessTokenProvider(accountsService, grantType, clientId, clientSecret, scope);
