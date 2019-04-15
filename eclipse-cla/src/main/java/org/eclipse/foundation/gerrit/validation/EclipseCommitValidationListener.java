@@ -274,20 +274,20 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	 */
 	private boolean hasCurrentAgreement(IdentifiedUser user) throws CommitValidationException {
 		if (user.getEffectiveGroups().containsAnyOf(getEclipseClaGroupIds())) {
-			log.info("User '" + user.getUserName() + "' is considered having an agreement as being part of the LDAP group '" + this.ecaLdapGroupName + "'");
+			log.info("User with Gerrit accound ID '" + user.getAccountId().get() + "' is considered having an agreement as being part of the LDAP group '" + this.ecaLdapGroupName + "'");
 			return true;
 		} else { 
-			log.info("User '" + user.getUserName() + "' is not part of the LDAP group '" + this.ecaLdapGroupName + "'");
+			log.info("User with Gerrit accound ID '" + user.getAccountId().get() + "' is not part of the LDAP group '" + this.ecaLdapGroupName + "'");
 		}
 		
 		if (hasCurrentAgreementOnServer(user)) {
-			log.info("User '" + user.getUserName() + "' is considered having an agreement by " + APIService.BASE_URL);
+			log.info("User with Gerrit accound ID '" + user.getAccountId().get() + "' is considered having an agreement by " + APIService.BASE_URL);
 			return true;
 		} else {
-			log.info("User '" + user.getUserName() + "' is not considered having an agreement by " + APIService.BASE_URL);
+			log.info("User with Gerrit accound ID '" + user.getAccountId().get() + "' is not considered having an agreement by " + APIService.BASE_URL);
 		}
 		
-		log.info("User '" + user.getUserName() + "' is *not* considered having any agreement");
+		log.info("User with Gerrit accound ID '" + user.getAccountId().get() + "' is *not* considered having any agreement");
 		return false;
 	}
 
@@ -324,7 +324,12 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		};
 		CompletableFuture.allOf(l.stream()
 				.map(f -> f.thenAccept(whenMatching)).toArray(CompletableFuture<?>[]::new))
-				.whenComplete((ignored, t) -> result.completeExceptionally(t != null ? t : new NoSuchElementException()));
+				.whenComplete((ignored, t) ->  {
+					if (t != null)
+						result.completeExceptionally(t);
+					else
+						result.complete(Boolean.FALSE);
+				});
 		
 		return result;
 	}
