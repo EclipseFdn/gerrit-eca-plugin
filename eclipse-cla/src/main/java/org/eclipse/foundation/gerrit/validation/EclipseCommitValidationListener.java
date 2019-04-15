@@ -95,13 +95,15 @@ import retrofit2.Response;
 @Listen
 @Singleton
 public class EclipseCommitValidationListener implements CommitValidationListener {
-	private static final String PLUGIN_NAME = "eca-validation";
+	private static final String PLUGIN_NAME = "eclipse-eca-validation";
 
 	private static final String CFG__GRANT_TYPE = "grantType";
 	private static final String CFG__GRANT_TYPE_DEFAULT = "client_credentials";
+	
 	private static final String CFG__SCOPE = "scope";
 	private static final String CFG__SCOPE_DEFAULT = "eclipsefdn_view_all_profiles";
-	private static final String CFG__CLIENT_SECRET = "client_secret";
+	
+	private static final String CFG__CLIENT_SECRET = "clientSecret";
 	private static final String CFG__CLIENT_ID = "clientId";
 	
 	private static final String ECA_DOCUMENTATION = "Please see http://wiki.eclipse.org/ECA";
@@ -115,15 +117,14 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	ProjectControl.GenericFactory projectControlFactory;
 	@Inject
 	GroupCache groupCache;
-	@Inject
-	private PluginConfigFactory cfg;
 	
 	private final APIService apiService;
 
 	private final String ecaLdapGroupName;
 	
-	public EclipseCommitValidationListener() {
-		PluginConfig config = cfg.getFromGerritConfig(PLUGIN_NAME);
+	@Inject
+	public EclipseCommitValidationListener(PluginConfigFactory cfgFactory) {
+		PluginConfig config = cfgFactory.getFromGerritConfig(PLUGIN_NAME, true);
 		RetrofitFactory retrofitFactory = new RetrofitFactory(
 				config.getString(CFG__GRANT_TYPE, CFG__GRANT_TYPE_DEFAULT), 
 				config.getString(CFG__CLIENT_ID), 
