@@ -12,8 +12,8 @@ package org.eclipse.foundation.gerrit.validation;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -33,8 +33,6 @@ import org.slf4j.LoggerFactory;
 import com.google.gerrit.extensions.annotations.Listen;
 import com.google.gerrit.reviewdb.client.Account.Id;
 import com.google.gerrit.reviewdb.client.AccountExternalId;
-import com.google.gerrit.reviewdb.client.AccountGroup;
-import com.google.gerrit.reviewdb.client.AccountGroup.UUID;
 import com.google.gerrit.reviewdb.client.Project;
 import com.google.gerrit.server.IdentifiedUser;
 import com.google.gerrit.server.account.AccountException;
@@ -109,7 +107,6 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	private static final String CFG__CLIENT_ID = "clientId";
 	
 	private static final String ECA_DOCUMENTATION = "Please see http://wiki.eclipse.org/ECA";
-	private static final String DEFAULT_ECA_LDAP_GROUP = "ldap:cn=eclipsecla,ou=group,dc=eclipse,dc=org";
 	
 	static final Logger log = LoggerFactory.getLogger(EclipseCommitValidationListener.class);
 	
@@ -124,7 +121,6 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	
 	private final APIService apiService;
 
-	private final String ecaLdapGroupName;
 	
 	@Inject
 	public EclipseCommitValidationListener(PluginConfigFactory cfgFactory) {
@@ -135,7 +131,6 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 				config.getString(CFG__CLIENT_SECRET), 
 				config.getString(CFG__SCOPE, CFG__SCOPE_DEFAULT));
 		this.apiService = retrofitFactory.newService(APIService.BASE_URL, APIService.class);
-		this.ecaLdapGroupName = config.getString("ldap", DEFAULT_ECA_LDAP_GROUP);
 	}
 	
 	/**
@@ -151,7 +146,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 
 		RevCommit commit = receiveEvent.commit;
 		PersonIdent authorIdent = commit.getAuthorIdent();
-		
+
 		List<CommitValidationMessage> messages = new ArrayList<CommitValidationMessage>();
 		addSeparatorLine(messages);
 		messages.add(new CommitValidationMessage(String.format("Reviewing commit: %1$s", commit.abbreviate(8).name()), false));
@@ -159,15 +154,11 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		addEmptyLine(messages);
 		
 		/*
-		 * The user must have a presence in Gerrit.
+		 * Retrieve the authors Gerrit identity if it exists
 		 */
-		IdentifiedUser author = identifyUser(authorIdent);
-		if (author == null) {
-			messages.add(new CommitValidationMessage("The author does not have a Gerrit account.", true));
-			messages.add(new CommitValidationMessage("All authors must either be a commiter on the project, or have a current ECA on file.", false));
-			addDocumentationPointerMessage(messages);
-			addEmptyLine(messages);
-			throw new CommitValidationException("The author must register with Gerrit.", messages);
+		Optional<IdentifiedUser> author = identifyUser(authorIdent);
+		if (!author.isPresent()) {
+			messages.add(new CommitValidationMessage("The author does not have a Gerrit account.", false));
 		}		
 		
 		/*
@@ -175,13 +166,13 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		 * needs to have a current ECA on file and sign-off on the
 		 * commit.
 		 */
-		if (isCommitter(author, project)) {
+		if (author.isPresent() && isCommitter(author.get(), project)) {
 			messages.add(new CommitValidationMessage("The author is a committer on the project.", false));	
 		} else {
 			messages.add(new CommitValidationMessage("The author is not a committer on the project.", false));	
 
 			List<String> errors = new ArrayList<String>();
-			if (hasCurrentAgreement(author)) {
+			if (hasCurrentAgreement(authorIdent, author)) {
 				messages.add(new CommitValidationMessage("The author has a current Eclipse Contributor Agreement (ECA) on file.", false));	
 			} else {
 				messages.add(new CommitValidationMessage("The author does not have a current Eclipse Contributor Agreement (ECA) on file.\n" + 
@@ -190,7 +181,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 				errors.add("An Eclipse Contributor Agreement is required.");
 			}
 			
-			if (hasSignedOff(author, commit)) {
+			if (hasSignedOff(authorIdent, author, commit)) {
 				messages.add(new CommitValidationMessage("The author has \"signed-off\" on the contribution.", false));
 			} else {
 				messages.add(new CommitValidationMessage("The author has not \"signed-off\" on the contribution.\n" +
@@ -211,7 +202,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 		 * Only committers can push on behalf of other users. Note that, I am asking
 		 * if the user (i.e. the person who is doing the actual push) is a committer.
 		 */
-		if (!author.getAccount().equals(user.getAccount())) {
+		if (!author.isPresent() || !author.get().getAccount().equals(user.getAccount())) {
 			if (!isCommitter(user, project)) {
 				messages.add(new CommitValidationMessage("You are not a project committer.", true));
 				messages.add(new CommitValidationMessage("Only project committers can push on behalf of others.", true));
@@ -232,15 +223,21 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	 * sign off on the commit (i.e. they can use any email address that is registered
 	 * with Gerrit.
 	 * 
+	 * @param userIdent Object representation of user credentials of a Git commit.
 	 * @param author The Gerrit identity of the author of the commit.
 	 * @param commit The commit.
 	 * @return <code>true</code> if the author has signed off; <code>false</code> otherwise.
 	 */
-	private boolean hasSignedOff(IdentifiedUser author, RevCommit commit) {
-	  for (final FooterLine footer : commit.getFooterLines()) {
+	private boolean hasSignedOff(PersonIdent authorIdent, Optional<IdentifiedUser> author, RevCommit commit) {
+		Set<String> emailAddresses = new HashSet<>();
+		emailAddresses.add(authorIdent.getEmailAddress());
+		// add all Gerrit email addresses if present
+		author.ifPresent(u -> emailAddresses.addAll(u.getEmailAddresses()));
+		
+		for (final FooterLine footer : commit.getFooterLines()) {
           if (footer.matches(FooterKey.SIGNED_OFF_BY)) {
             final String email = footer.getEmailAddress();
-            if (author.getEmailAddresses().contains(email)) return true;
+            if (emailAddresses.contains(email)) return true;
           }
         }
 		return false;
@@ -266,46 +263,57 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	 * <code>false</code> otherwise.
 	 * </p>
 	 * 
-	 * @param user a Gerrit user.
+	 * @param userIdent Object representation of user credentials of a Git commit.
+	 * @param user a Gerrit user if present.
 	 * @return <code>true</code> if the user has a current agreement, or
 	 *         <code>false</code> otherwise.
 	 * @throws CommitValidationException 
 	 * @throws IOException
 	 */
-	private boolean hasCurrentAgreement(IdentifiedUser user) throws CommitValidationException {
-		if (user.getEffectiveGroups().containsAnyOf(getEclipseClaGroupIds())) {
-			log.info("User with Gerrit accound ID '" + user.getAccountId().get() + "' is considered having an agreement as being part of the LDAP group '" + this.ecaLdapGroupName + "'");
-			return true;
-		} else { 
-			log.info("User with Gerrit accound ID '" + user.getAccountId().get() + "' is not part of the LDAP group '" + this.ecaLdapGroupName + "'");
-		}
-		
-		if (hasCurrentAgreementOnServer(user)) {
-			log.info("User with Gerrit accound ID '" + user.getAccountId().get() + "' is considered having an agreement by " + APIService.BASE_URL);
+	private boolean hasCurrentAgreement(PersonIdent userIdent, Optional<IdentifiedUser> user) throws CommitValidationException {		
+		if (hasCurrentAgreementOnServer(userIdent, user)) {
+			if (user.isPresent()) {
+				log.info("User with Gerrit accound ID '" + user.get().getAccountId().get() + "' is considered having an agreement by " + APIService.BASE_URL);
+			} else {
+				log.info("User with Git email address '" + userIdent.getEmailAddress() + "' is considered having an agreement by " + APIService.BASE_URL);
+			}
+				
 			return true;
 		} else {
-			log.info("User with Gerrit accound ID '" + user.getAccountId().get() + "' is not considered having an agreement by " + APIService.BASE_URL);
+			if (user.isPresent()) {
+				log.info("User with Gerrit accound ID '" + user.get().getAccountId().get() + "' is not considered having an agreement by " + APIService.BASE_URL);
+			} else {
+				log.info("User with Git email address '" + userIdent.getEmailAddress() + "' is not considered having an agreement by " + APIService.BASE_URL);
+			}
 		}
-		
-		log.info("User with Gerrit accound ID '" + user.getAccountId().get() + "' is *not* considered having any agreement");
+
+		if (user.isPresent()) {
+			log.info("User with Gerrit accound ID '" + user.get().getAccountId().get() + "' is *not* considered having any agreement");
+		} else {
+			log.info("User with Git email address '" + userIdent.getEmailAddress() + "' is *not* considered having any agreement");
+		}
 		return false;
 	}
 
-	private boolean hasCurrentAgreementOnServer(IdentifiedUser user) throws CommitValidationException {
+	private boolean hasCurrentAgreementOnServer(PersonIdent authorIdent, Optional<IdentifiedUser> user) throws CommitValidationException {
 		try {
-			Response<ECA> eca = this.apiService.eca(user.getUserName()).get();
-			if (eca.isSuccessful()) {
-				return eca.body().signed();
-			} else {
-				// Start a request for all emails, if any match, considered the user having an agreement
-				Set<String> emailAddresses = user.getEmailAddresses();
-				List<CompletableFuture<Response<List<UserAccount>>>> searches = emailAddresses.stream()
-						.map(email -> this.apiService.search(null, null, email))
-						.collect(Collectors.toList());
-				
-				return anyMatch(searches, e -> e.isSuccessful() && e.body().stream().anyMatch(a -> a.eca().signed()))
-						.get().booleanValue();
+			if (user.isPresent()) {
+				Response<ECA> eca = this.apiService.eca(user.get().getUserName()).get();
+				if (eca.isSuccessful()) return eca.body().signed();
 			}
+			
+			// Start a request for all emails, if any match, considered the user having an agreement
+			Set<String> emailAddresses = new HashSet<>();
+			emailAddresses.add(authorIdent.getEmailAddress());
+			
+			// add all Gerrit email addresses if present
+			user.ifPresent(u -> emailAddresses.addAll(u.getEmailAddresses()));
+			List<CompletableFuture<Response<List<UserAccount>>>> searches = emailAddresses.stream()
+					.map(email -> this.apiService.search(null, null, email))
+					.collect(Collectors.toList());
+			
+			return anyMatch(searches, e -> e.isSuccessful() && e.body().stream().anyMatch(a -> a.eca().signed()))
+					.get().booleanValue();
 		} catch (ExecutionException e) {
 			log.error(e.getMessage(), e);
 			throw new CommitValidationException("An error happened while checking if user has a signed agreement", e);
@@ -332,19 +340,6 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 				});
 		
 		return result;
-	}
-
-	/**
-	 * Answers a collection containing the UUIDs of groups that contain users
-	 * with valid ECAs. Multiple values are supported since there is potential
-	 * that--at some point in the future--we may have multiple versions of the
-	 * ECA. Some period of overlap where both the old and new ECAs are valid
-	 * will likely occur in that event.
-	 */
-	private Iterable<UUID> getEclipseClaGroupIds() {
-		List<UUID> groups = new ArrayList<>();
-		groups.add(new AccountGroup.UUID(this.ecaLdapGroupName));
-		return groups;
 	}
 
 	/**
@@ -376,7 +371,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 
 	/**
 	 * Answers the Gerrit identity (instance of IdentifiedUser) associated with
-	 * the author credentials, or <code>null</code> if the user cannot be
+	 * the author credentials, or <code>Optional.empty()</code> if the user cannot be
 	 * matched to a Gerrit user identity.
 	 * 
 	 * @param author
@@ -384,7 +379,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	 * @return an instance of IdentifiedUser or <code>null</code> if the user
 	 *         cannot be identified by Gerrit.
 	 */
-	private IdentifiedUser identifyUser(PersonIdent author) {
+	private Optional<IdentifiedUser> identifyUser(PersonIdent author) {
 		try {
 			/*
 			 * The gerrit: scheme is, according to documentation on AccountExternalId,
@@ -396,10 +391,10 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			Optional<Id> id = accountManager.lookup(AccountExternalId.SCHEME_MAILTO + author.getEmailAddress());
 			if (!id.isPresent()) 
 				id = accountManager.lookup(AccountExternalId.SCHEME_GERRIT + author.getEmailAddress().toLowerCase());
-			if (!id.isPresent()) return null;
-			return factory.create(id.get());
+			if (!id.isPresent()) return Optional.empty();
+			return Optional.of(factory.create(id.get()));
 		} catch (AccountException e) {
-			return null;
+			return Optional.empty();
 		}
 	}
 }
