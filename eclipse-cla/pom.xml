@@ -8,6 +8,7 @@
  *
  * Contributors:
  *    Wayne Beaton - initial API and implementation and/or initial documentation
+ *    Martin Lowe - API patching and minor modifications 
  *******************************************************************************/
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
