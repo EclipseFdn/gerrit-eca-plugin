@@ -23,21 +23,14 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import org.eclipse.jgit.lib.PersonIdent;
-import org.eclipse.jgit.revwalk.FooterKey;
-import org.eclipse.jgit.revwalk.FooterLine;
-import org.eclipse.jgit.revwalk.RevCommit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.google.gerrit.extensions.annotations.Listen;
 import com.google.gerrit.reviewdb.client.Account.Id;
-import com.google.gerrit.reviewdb.client.AccountExternalId;
 import com.google.gerrit.reviewdb.client.Project;
 import com.google.gerrit.server.IdentifiedUser;
 import com.google.gerrit.server.account.AccountException;
 import com.google.gerrit.server.account.AccountManager;
 import com.google.gerrit.server.account.GroupCache;
+import com.google.gerrit.server.account.externalids.ExternalId;
 import com.google.gerrit.server.config.PluginConfig;
 import com.google.gerrit.server.config.PluginConfigFactory;
 import com.google.gerrit.server.events.CommitReceivedEvent;
@@ -45,10 +38,15 @@ import com.google.gerrit.server.git.validators.CommitValidationException;
 import com.google.gerrit.server.git.validators.CommitValidationListener;
 import com.google.gerrit.server.git.validators.CommitValidationMessage;
 import com.google.gerrit.server.project.NoSuchProjectException;
-import com.google.gerrit.server.project.ProjectControl;
-import com.google.gerrit.server.project.RefControl;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
+
+import org.eclipse.jgit.lib.PersonIdent;
+import org.eclipse.jgit.revwalk.FooterKey;
+import org.eclipse.jgit.revwalk.FooterLine;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import retrofit2.Response;
 
@@ -118,7 +116,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	ProjectControl.GenericFactory projectControlFactory;
 	@Inject
 	GroupCache groupCache;
-	
+
 	private final APIService apiService;
 
 	
@@ -298,7 +296,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 	private boolean hasCurrentAgreementOnServer(PersonIdent authorIdent, Optional<IdentifiedUser> user) throws CommitValidationException {
 		try {
 			if (user.isPresent()) {
-				Response<ECA> eca = this.apiService.eca(user.get().getUserName()).get();
+				Response<ECA> eca = this.apiService.eca(user.get().getUserName().get()).get();
 				if (eca.isSuccessful()) return eca.body().signed();
 			}
 			
@@ -388,9 +386,9 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 			 * 
 			 * We look up both using mailto: and gerrit:
 			 */
-			Optional<Id> id = accountManager.lookup(AccountExternalId.SCHEME_MAILTO + author.getEmailAddress());
+			Optional<Id> id = accountManager.lookup(ExternalId.SCHEME_MAILTO + author.getEmailAddress());
 			if (!id.isPresent()) 
-				id = accountManager.lookup(AccountExternalId.SCHEME_GERRIT + author.getEmailAddress().toLowerCase());
+				id = accountManager.lookup(ExternalId.SCHEME_GERRIT + author.getEmailAddress().toLowerCase());
 			if (!id.isPresent()) return Optional.empty();
 			return Optional.of(factory.create(id.get()));
 		} catch (AccountException e) {
