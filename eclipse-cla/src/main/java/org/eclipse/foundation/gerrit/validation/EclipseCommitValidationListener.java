@@ -10,22 +10,23 @@
 package org.eclipse.foundation.gerrit.validation;
 
 import com.google.gerrit.extensions.annotations.Listen;
+import com.google.gerrit.extensions.restapi.AuthException;
 import com.google.gerrit.reviewdb.client.Account.Id;
-import com.google.gerrit.reviewdb.client.AccountExternalId;
 import com.google.gerrit.reviewdb.client.Project;
 import com.google.gerrit.server.IdentifiedUser;
 import com.google.gerrit.server.account.AccountException;
 import com.google.gerrit.server.account.AccountManager;
 import com.google.gerrit.server.account.GroupCache;
+import com.google.gerrit.server.account.externalids.ExternalId;
 import com.google.gerrit.server.config.PluginConfig;
 import com.google.gerrit.server.config.PluginConfigFactory;
 import com.google.gerrit.server.events.CommitReceivedEvent;
 import com.google.gerrit.server.git.validators.CommitValidationException;
 import com.google.gerrit.server.git.validators.CommitValidationListener;
 import com.google.gerrit.server.git.validators.CommitValidationMessage;
-import com.google.gerrit.server.project.NoSuchProjectException;
-import com.google.gerrit.server.project.ProjectControl;
-import com.google.gerrit.server.project.RefControl;
+import com.google.gerrit.server.permissions.PermissionBackend;
+import com.google.gerrit.server.permissions.PermissionBackendException;
+import com.google.gerrit.server.permissions.RefPermission;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import java.io.IOException;
@@ -100,7 +101,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 
   @Inject AccountManager accountManager;
   @Inject IdentifiedUser.GenericFactory factory;
-  @Inject ProjectControl.GenericFactory projectControlFactory;
+  @Inject PermissionBackend permissionBackend;
   @Inject GroupCache groupCache;
 
   private final APIService apiService;
@@ -126,6 +127,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 
     IdentifiedUser user = receiveEvent.user;
     Project project = receiveEvent.project;
+    String refName = receiveEvent.refName;
 
     RevCommit commit = receiveEvent.commit;
     PersonIdent authorIdent = commit.getAuthorIdent();
@@ -156,7 +158,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
      * needs to have a current ECA on file and sign-off on the
      * commit.
      */
-    if (author.isPresent() && isCommitter(author.get(), project)) {
+    if (author.isPresent() && isCommitter(author.get(), project, refName)) {
       messages.add(new CommitValidationMessage("The author is a committer on the project.", false));
     } else {
       messages.add(
@@ -204,7 +206,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
      * if the user (i.e. the person who is doing the actual push) is a committer.
      */
     if (!author.isPresent() || !author.get().getAccount().equals(user.getAccount())) {
-      if (!isCommitter(user, project)) {
+      if (!isCommitter(user, project, refName)) {
         messages.add(new CommitValidationMessage("You are not a project committer.", true));
         messages.add(
             new CommitValidationMessage(
@@ -322,7 +324,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
       PersonIdent authorIdent, Optional<IdentifiedUser> user) throws CommitValidationException {
     try {
       if (user.isPresent()) {
-        Response<ECA> eca = this.apiService.eca(user.get().getUserName()).get();
+        Response<ECA> eca = this.apiService.eca(user.get().getUserName().get()).get();
         if (eca.isSuccessful()) return eca.body().signed();
       }
 
@@ -378,23 +380,24 @@ public class EclipseCommitValidationListener implements CommitValidationListener
    *
    * @param user
    * @param project
-   * @return
+   * @param refName
+   * @return true if user is committer, false otherwise
    */
-  private boolean isCommitter(IdentifiedUser user, Project project) {
+  private boolean isCommitter(IdentifiedUser user, Project project, String refName) {
     try {
       /*
        * We assume that an individual is a committer if they can push to
        * the project.
        */
-      ProjectControl projectControl = projectControlFactory.controlFor(project.getNameKey(), user);
-      RefControl refControl = projectControl.controlForRef("refs/heads/*");
-      return refControl.canSubmit(true);
-    } catch (NoSuchProjectException nspe) {
-      nspe.printStackTrace();
-    } catch (IOException ioe) {
-      ioe.printStackTrace();
+      permissionBackend
+          .user(user)
+          .project(project.getNameKey())
+          .ref(refName)
+          .check(RefPermission.UPDATE_BY_SUBMIT);
+    } catch (AuthException | PermissionBackendException e) {
+      return false;
     }
-    return false;
+    return true;
   }
 
   /**
@@ -415,12 +418,11 @@ public class EclipseCommitValidationListener implements CommitValidationListener
        *
        * We look up both using mailto: and gerrit:
        */
-      Optional<Id> id =
-          accountManager.lookup(AccountExternalId.SCHEME_MAILTO + author.getEmailAddress());
+      Optional<Id> id = accountManager.lookup(ExternalId.SCHEME_MAILTO + author.getEmailAddress());
       if (!id.isPresent())
         id =
             accountManager.lookup(
-                AccountExternalId.SCHEME_GERRIT + author.getEmailAddress().toLowerCase());
+                ExternalId.SCHEME_GERRIT + author.getEmailAddress().toLowerCase());
       if (!id.isPresent()) return Optional.empty();
       return Optional.of(factory.create(id.get()));
     } catch (AccountException e) {
