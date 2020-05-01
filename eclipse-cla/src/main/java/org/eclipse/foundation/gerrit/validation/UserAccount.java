@@ -1,57 +1,57 @@
-/*********************************************************************
-* Copyright (c) 2019 Eclipse Foundation and others.
-* 
-* This program and the accompanying materials are made
-* available under the terms of the Eclipse Public License 2.0
-* which is available at https://www.eclipse.org/legal/epl-2.0/
-*
-* SPDX-License-Identifier: EPL-2.0
-**********************************************************************/
+/**
+ * ******************************************************************* Copyright (c) 2019 Eclipse
+ * Foundation and others.
+ *
+ * <p>This program and the accompanying materials are made available under the terms of the Eclipse
+ * Public License 2.0 which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * <p>SPDX-License-Identifier: EPL-2.0
+ * ********************************************************************
+ */
 package org.eclipse.foundation.gerrit.validation;
-
-import javax.annotation.Nullable;
 
 import com.google.auto.value.AutoValue;
 import com.squareup.moshi.Json;
 import com.squareup.moshi.JsonAdapter;
 import com.squareup.moshi.Moshi;
+import javax.annotation.Nullable;
 
 @AutoValue
 abstract class UserAccount {
 
-	abstract int uid();
+  abstract int uid();
 
-	abstract String name();
+  abstract String name();
 
-	@Nullable
-	abstract String mail();
+  @Nullable
+  abstract String mail();
 
-	abstract ECA eca();
+  abstract ECA eca();
 
-	@Json(name = "is_committer")
-	abstract boolean isCommitter();
+  @Json(name = "is_committer")
+  abstract boolean isCommitter();
 
-	// TODO: make package-private
-	public static JsonAdapter<UserAccount> jsonAdapter(Moshi moshi) {
-		return new AutoValue_UserAccount.MoshiJsonAdapter(moshi).nullSafe();
-	}
+  // TODO: make package-private
+  public static JsonAdapter<UserAccount> jsonAdapter(Moshi moshi) {
+    return new AutoValue_UserAccount.MoshiJsonAdapter(moshi).nullSafe();
+  }
 
-	static Builder builder() {
-		return new AutoValue_UserAccount.Builder();
-	}
+  static Builder builder() {
+    return new AutoValue_UserAccount.Builder();
+  }
 
-	@AutoValue.Builder
-	abstract static class Builder {
-		abstract Builder uid(int uid);
+  @AutoValue.Builder
+  abstract static class Builder {
+    abstract Builder uid(int uid);
 
-		abstract Builder name(String name);
+    abstract Builder name(String name);
 
-		abstract Builder mail(String mail);
+    abstract Builder mail(String mail);
 
-		abstract Builder eca(ECA eca);
+    abstract Builder eca(ECA eca);
 
-		abstract Builder isCommitter(boolean isCommitter);
+    abstract Builder isCommitter(boolean isCommitter);
 
-		abstract UserAccount build();
-	}
+    abstract UserAccount build();
+  }
 }
