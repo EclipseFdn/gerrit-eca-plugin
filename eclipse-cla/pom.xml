@@ -12,14 +12,14 @@
 	<parent>
 		<groupId>org.eclipse.foundation</groupId>
 		<artifactId>eclipse-cla-parent</artifactId>
-		<version>1.0.10</version>
+		<version>1.0.11</version>
 	</parent>
 	<artifactId>eclipse-cla</artifactId>
 	<packaging>jar</packaging>
 	<name>CLA</name>
 	<properties>
 		<Gerrit-ApiType>plugin</Gerrit-ApiType>
-		<Gerrit-ApiVersion>2.16.18</Gerrit-ApiVersion>
+		<Gerrit-ApiVersion>3.2.2</Gerrit-ApiVersion>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<maven.compiler.source>1.8</maven.compiler.source>
 		<maven.compiler.target>1.8</maven.compiler.target>
