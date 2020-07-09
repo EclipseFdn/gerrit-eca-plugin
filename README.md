@@ -3,7 +3,7 @@ gerrit-eca-plugin
 
 A Gerrit plugin for controlling pushes to eclipse.org repositories.
 
-Provides an implementation of [Gerrit](https://code.google.com/p/gerrit/) 2.6's CommitValidationListener interface that imposes the following restrictions:
+Provides an implementation of [Gerrit](https://code.google.com/p/gerrit/) 3.2's CommitValidationListener interface that imposes the following restrictions:
 
 * A project committer can push a commit on behalf of themselves or any other project committer
 * A project committer can push a commit on behalf of a contributor if:
