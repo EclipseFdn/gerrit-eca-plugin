@@ -9,19 +9,6 @@
  */
 package org.eclipse.foundation.gerrit.validation;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-
 import com.google.gerrit.entities.Account;
 import com.google.gerrit.entities.Project;
 import com.google.gerrit.extensions.annotations.Listen;
@@ -42,14 +29,24 @@ import com.google.gerrit.server.permissions.PermissionBackendException;
 import com.google.gerrit.server.permissions.RefPermission;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
-
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.FooterKey;
 import org.eclipse.jgit.revwalk.FooterLine;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import retrofit2.Response;
 
 /**
@@ -421,7 +418,8 @@ public class EclipseCommitValidationListener implements CommitValidationListener
        *
        * We look up both using mailto: and gerrit:
        */
-      Optional<Account.Id> id = accountManager.lookup(ExternalId.SCHEME_MAILTO + author.getEmailAddress());
+      Optional<Account.Id> id =
+          accountManager.lookup(ExternalId.SCHEME_MAILTO + author.getEmailAddress());
       if (!id.isPresent())
         id =
             accountManager.lookup(
