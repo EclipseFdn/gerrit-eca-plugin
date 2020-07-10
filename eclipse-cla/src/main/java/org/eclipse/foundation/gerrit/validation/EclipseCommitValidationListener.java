@@ -94,19 +94,26 @@ public class EclipseCommitValidationListener implements CommitValidationListener
   private static final String CFG__CLIENT_SECRET = "clientSecret";
   private static final String CFG__CLIENT_ID = "clientId";
 
+  private static final Logger log = LoggerFactory.getLogger(EclipseCommitValidationListener.class);
   private static final String ECA_DOCUMENTATION = "Please see http://wiki.eclipse.org/ECA";
 
-  static final Logger log = LoggerFactory.getLogger(EclipseCommitValidationListener.class);
-
-  @Inject ExternalIds externalIds;
-  @Inject IdentifiedUser.GenericFactory factory;
-  @Inject PermissionBackend permissionBackend;
-  @Inject GroupCache groupCache;
-
+  private final ExternalIds externalIds;
+  private final IdentifiedUser.GenericFactory factory;
+  private final PermissionBackend permissionBackend;
+  private final GroupCache groupCache;
   private final APIService apiService;
 
   @Inject
-  public EclipseCommitValidationListener(PluginConfigFactory cfgFactory) {
+  public EclipseCommitValidationListener(
+      ExternalIds externalIds,
+      IdentifiedUser.GenericFactory factory,
+      PermissionBackend permissionBackend,
+      GroupCache groupCache,
+      PluginConfigFactory cfgFactory) {
+    this.externalIds = externalIds;
+    this.factory = factory;
+    this.permissionBackend = permissionBackend;
+    this.groupCache = groupCache;
     PluginConfig config = cfgFactory.getFromGerritConfig(PLUGIN_NAME, true);
     RetrofitFactory retrofitFactory =
         new RetrofitFactory(
