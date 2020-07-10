@@ -9,15 +9,13 @@
  */
 package org.eclipse.foundation.gerrit.validation;
 
-import com.google.gerrit.entities.Account;
 import com.google.gerrit.entities.Project;
 import com.google.gerrit.extensions.annotations.Listen;
 import com.google.gerrit.extensions.restapi.AuthException;
 import com.google.gerrit.server.IdentifiedUser;
-import com.google.gerrit.server.account.AccountException;
-import com.google.gerrit.server.account.AccountManager;
 import com.google.gerrit.server.account.GroupCache;
 import com.google.gerrit.server.account.externalids.ExternalId;
+import com.google.gerrit.server.account.externalids.ExternalIds;
 import com.google.gerrit.server.config.PluginConfig;
 import com.google.gerrit.server.config.PluginConfigFactory;
 import com.google.gerrit.server.events.CommitReceivedEvent;
@@ -41,6 +39,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import org.eclipse.jgit.errors.ConfigInvalidException;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.FooterKey;
 import org.eclipse.jgit.revwalk.FooterLine;
@@ -99,7 +98,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 
   static final Logger log = LoggerFactory.getLogger(EclipseCommitValidationListener.class);
 
-  @Inject AccountManager accountManager;
+  @Inject ExternalIds externalIds;
   @Inject IdentifiedUser.GenericFactory factory;
   @Inject PermissionBackend permissionBackend;
   @Inject GroupCache groupCache;
@@ -418,15 +417,21 @@ public class EclipseCommitValidationListener implements CommitValidationListener
        *
        * We look up both using mailto: and gerrit:
        */
-      Optional<Account.Id> id =
-          accountManager.lookup(ExternalId.SCHEME_MAILTO + author.getEmailAddress());
-      if (!id.isPresent())
+      Optional<ExternalId> id =
+          externalIds.get(
+              ExternalId.Key.create(ExternalId.SCHEME_MAILTO, author.getEmailAddress()));
+      if (!id.isPresent()) {
         id =
-            accountManager.lookup(
-                ExternalId.SCHEME_GERRIT + author.getEmailAddress().toLowerCase());
-      if (!id.isPresent()) return Optional.empty();
-      return Optional.of(factory.create(id.get()));
-    } catch (AccountException e) {
+            externalIds.get(
+                ExternalId.Key.create(
+                    ExternalId.SCHEME_GERRIT, author.getEmailAddress().toLowerCase()));
+        if (!id.isPresent()) {
+          return Optional.empty();
+        }
+      }
+      return Optional.of(factory.create(id.get().accountId()));
+    } catch (ConfigInvalidException | IOException e) {
+      log.error("Cannot retrieve external id", e);
       return Optional.empty();
     }
   }
