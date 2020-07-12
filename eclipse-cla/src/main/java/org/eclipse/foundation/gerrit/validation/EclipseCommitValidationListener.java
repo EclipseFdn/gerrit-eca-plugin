@@ -24,7 +24,7 @@ import com.google.gerrit.server.git.validators.CommitValidationListener;
 import com.google.gerrit.server.git.validators.CommitValidationMessage;
 import com.google.gerrit.server.permissions.PermissionBackend;
 import com.google.gerrit.server.permissions.PermissionBackendException;
-import com.google.gerrit.server.permissions.RefPermission;
+import com.google.gerrit.server.permissions.ProjectPermission;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import java.io.IOException;
@@ -94,7 +94,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
   private static final String CFG__CLIENT_SECRET = "clientSecret";
   private static final String CFG__CLIENT_ID = "clientId";
 
-  private static final Logger log = LoggerFactory.getLogger(EclipseCommitValidationListener.class);
+  static final Logger log = LoggerFactory.getLogger(EclipseCommitValidationListener.class);
   private static final String ECA_DOCUMENTATION = "Please see http://wiki.eclipse.org/ECA";
 
   private final ExternalIds externalIds;
@@ -133,7 +133,6 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 
     IdentifiedUser user = receiveEvent.user;
     Project project = receiveEvent.project;
-    String refName = receiveEvent.refName;
 
     RevCommit commit = receiveEvent.commit;
     PersonIdent authorIdent = commit.getAuthorIdent();
@@ -164,7 +163,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
      * needs to have a current ECA on file and sign-off on the
      * commit.
      */
-    if (author.isPresent() && isCommitter(author.get(), project, refName)) {
+    if (author.isPresent() && isCommitter(author.get(), project)) {
       messages.add(new CommitValidationMessage("The author is a committer on the project.", false));
     } else {
       messages.add(
@@ -212,7 +211,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
      * if the user (i.e. the person who is doing the actual push) is a committer.
      */
     if (!author.isPresent() || !author.get().getAccount().equals(user.getAccount())) {
-      if (!isCommitter(user, project, refName)) {
+      if (!isCommitter(user, project)) {
         messages.add(new CommitValidationMessage("You are not a project committer.", true));
         messages.add(
             new CommitValidationMessage(
@@ -386,20 +385,18 @@ public class EclipseCommitValidationListener implements CommitValidationListener
    *
    * @param user
    * @param project
-   * @param refName
    * @return true if user is committer, false otherwise
    */
-  private boolean isCommitter(IdentifiedUser user, Project project, String refName) {
+  private boolean isCommitter(IdentifiedUser user, Project project) {
     try {
       /*
-       * We assume that an individual is a committer if they can push to
-       * the project.
+       * We assume that an individual is a committer if they have
+       * Submit permission of refs/heads/*.
        */
       permissionBackend
           .user(user)
           .project(project.getNameKey())
-          .ref(refName)
-          .check(RefPermission.UPDATE_BY_SUBMIT);
+          .check(ProjectPermission.SUBMIT_CHANGE);
     } catch (AuthException | PermissionBackendException e) {
       return false;
     }
