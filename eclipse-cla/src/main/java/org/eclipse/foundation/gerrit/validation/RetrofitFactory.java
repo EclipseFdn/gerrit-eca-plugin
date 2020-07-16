@@ -24,11 +24,13 @@ import okhttp3.OkHttpClient;
 import okhttp3.internal.Util;
 import okhttp3.logging.HttpLoggingInterceptor;
 import okhttp3.logging.HttpLoggingInterceptor.Level;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import retrofit2.Retrofit;
 import retrofit2.converter.moshi.MoshiConverterFactory;
 
 final class RetrofitFactory {
-
+  private static final Logger log = LoggerFactory.getLogger(RetrofitFactory.class);
   private final OkHttpClient client;
   private final MoshiConverterFactory moshiConverterFactory;
 
@@ -41,7 +43,7 @@ final class RetrofitFactory {
                 new HttpLoggingInterceptor.Logger() {
                   @Override
                   public void log(String message) {
-                    EclipseCommitValidationListener.log.debug(message);
+                    log.debug(message);
                   }
                 })
             .setLevel(Level.BASIC);
