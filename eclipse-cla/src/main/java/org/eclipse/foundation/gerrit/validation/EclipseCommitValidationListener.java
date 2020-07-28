@@ -9,19 +9,6 @@
  */
 package org.eclipse.foundation.gerrit.validation;
 
-import com.google.gerrit.entities.Project;
-import com.google.gerrit.extensions.annotations.Listen;
-import com.google.gerrit.server.IdentifiedUser;
-import com.google.gerrit.server.account.externalids.ExternalId;
-import com.google.gerrit.server.account.externalids.ExternalIds;
-import com.google.gerrit.server.config.PluginConfig;
-import com.google.gerrit.server.config.PluginConfigFactory;
-import com.google.gerrit.server.events.CommitReceivedEvent;
-import com.google.gerrit.server.git.validators.CommitValidationException;
-import com.google.gerrit.server.git.validators.CommitValidationListener;
-import com.google.gerrit.server.git.validators.CommitValidationMessage;
-import com.google.inject.Inject;
-import com.google.inject.Singleton;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -34,11 +21,26 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import com.google.gerrit.extensions.annotations.Listen;
+import com.google.gerrit.server.IdentifiedUser;
+import com.google.gerrit.server.account.externalids.ExternalId;
+import com.google.gerrit.server.account.externalids.ExternalIds;
+import com.google.gerrit.server.config.PluginConfig;
+import com.google.gerrit.server.config.PluginConfigFactory;
+import com.google.gerrit.server.events.CommitReceivedEvent;
+import com.google.gerrit.server.git.validators.CommitValidationException;
+import com.google.gerrit.server.git.validators.CommitValidationListener;
+import com.google.gerrit.server.git.validators.CommitValidationMessage;
+import com.google.inject.Inject;
+import com.google.inject.Singleton;
+
 import org.eclipse.jgit.errors.ConfigInvalidException;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import retrofit2.Response;
 
 /**
@@ -98,14 +100,10 @@ public class EclipseCommitValidationListener implements CommitValidationListener
   public List<CommitValidationMessage> onCommitReceived(CommitReceivedEvent receiveEvent)
       throws CommitValidationException {
 
-    IdentifiedUser user = receiveEvent.user;
-    Project project = receiveEvent.project;
-    String refName = receiveEvent.refName;
-
     RevCommit commit = receiveEvent.commit;
     PersonIdent authorIdent = commit.getAuthorIdent();
 
-    List<CommitValidationMessage> messages = new ArrayList<CommitValidationMessage>();
+    List<CommitValidationMessage> messages = new ArrayList<>();
     addSeparatorLine(messages);
     messages.add(
         new CommitValidationMessage(
@@ -126,7 +124,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
           new CommitValidationMessage("The author does not have a Gerrit account.", false));
     }
 
-    List<String> errors = new ArrayList<String>();
+    List<String> errors = new ArrayList<>();
     if (hasCurrentAgreement(authorIdent, author)) {
       messages.add(
           new CommitValidationMessage(
@@ -152,15 +150,15 @@ public class EclipseCommitValidationListener implements CommitValidationListener
     return messages;
   }
 
-  private void addSeparatorLine(List<CommitValidationMessage> messages) {
+  private static void addSeparatorLine(List<CommitValidationMessage> messages) {
     messages.add(new CommitValidationMessage("----------", false));
   }
 
-  private void addEmptyLine(List<CommitValidationMessage> messages) {
+  private static void addEmptyLine(List<CommitValidationMessage> messages) {
     messages.add(new CommitValidationMessage("", false));
   }
 
-  private void addDocumentationPointerMessage(List<CommitValidationMessage> messages) {
+  private static void addDocumentationPointerMessage(List<CommitValidationMessage> messages) {
     messages.add(new CommitValidationMessage(ECA_DOCUMENTATION, false));
   }
 
