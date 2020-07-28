@@ -130,13 +130,17 @@ public class EclipseCommitValidationListener implements CommitValidationListener
           new CommitValidationMessage(
               "The author has a current Eclipse Contributor Agreement (ECA) on file.", false));
     } else {
-      messages.add(
-          new CommitValidationMessage(
-              "The author does not have a current Eclipse Contributor Agreement (ECA) on file.\n"
-                  + "If there are multiple commits, please ensure that each author has a ECA.",
-              true));
-      addEmptyLine(messages);
-      errors.add("An Eclipse Contributor Agreement is required.");
+      if (isABot(authorIdent, author)) {
+        messages.add(new CommitValidationMessage("The author is a registered bot and does not need an ECA.", false))
+      } else {
+        messages.add(
+            new CommitValidationMessage(
+                "The author does not have a current Eclipse Contributor Agreement (ECA) on file.\n"
+                    + "If there are multiple commits, please ensure that each author has a ECA.",
+                true));
+        addEmptyLine(messages);
+        errors.add("An Eclipse Contributor Agreement is required.");
+      }
     }
 
     // TODO Extend exception-throwing delegation to include all possible messages.
@@ -148,6 +152,40 @@ public class EclipseCommitValidationListener implements CommitValidationListener
     messages.add(new CommitValidationMessage("This commit passes Eclipse validation.", false));
 
     return messages;
+  }
+
+  private boolean isABot(PersonIdent authorIdent, Optional<IdentifiedUser> author) throws CommitValidationException {
+    try {
+      if (author.isPresent()) {
+        Response<List<Bot>> bots = this.apiService.bots(author.get().getUserName().get()).get();
+        if (bots.isSuccessful()) return bots.body().stream().anyMatch(b -> b.email() != null && b.email().equals(authorIdent.getEmailAddress()));
+      }
+
+      // Start a request for all emails, if any match, considered the user a bot
+      Set<String> emailAddresses = new HashSet<>();
+      emailAddresses.add(authorIdent.getEmailAddress());
+
+      // add all Gerrit email addresses if present
+      author.ifPresent(u -> emailAddresses.addAll(u.getEmailAddresses()));
+      List<CompletableFuture<Response<List<Bot>>>> searches =
+          emailAddresses.stream()
+              .map(email -> this.apiService.bots(email))
+              .collect(Collectors.toList());
+
+      return anyMatch(
+              searches, e -> e.isSuccessful() && e.body().stream().anyMatch(a -> a.email() != null && a.email().equals(authorIdent.getEmailAddress())))
+          .get()
+          .booleanValue();
+    } catch (ExecutionException e) {
+      log.error(e.getMessage(), e);
+      throw new CommitValidationException(
+          "An error happened while checking if user is a registered bot", e);
+    } catch (InterruptedException e) {
+      log.error(e.getMessage(), e);
+      Thread.currentThread().interrupt();
+      throw new CommitValidationException(
+          "Verification whether user is a registered bot has been interrupted", e);
+    }
   }
 
   private static void addSeparatorLine(List<CommitValidationMessage> messages) {

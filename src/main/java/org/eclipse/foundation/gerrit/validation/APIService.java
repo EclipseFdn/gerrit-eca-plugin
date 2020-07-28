@@ -12,6 +12,7 @@ package org.eclipse.foundation.gerrit.validation;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+
 import okhttp3.HttpUrl;
 import retrofit2.Response;
 import retrofit2.http.GET;
@@ -31,4 +32,7 @@ interface APIService {
 
   @GET("/account/profile/{name}/eca")
   CompletableFuture<Response<ECA>> eca(@Path("name") String name);
+
+  @GET("/bots")
+  CompletableFuture<Response<List<Bot>>> bots(@Query("q") String query);
 }
