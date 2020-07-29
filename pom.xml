@@ -38,8 +38,8 @@
 					<archive>
 						<manifestEntries>
 							<Implementation-Vendor>The Eclipse Foundation</Implementation-Vendor>
-							<Gerrit-PluginName>eclipse-eca-validation</Gerrit-PluginName>
-							<Implementation-URL>https://github.com/eclipse/gerrit-cla-plugin</Implementation-URL>
+							<Gerrit-PluginName>eca-validation</Gerrit-PluginName>
+							<Implementation-URL>https://github.com/EclipseFdn/gerrit-eca-plugin</Implementation-URL>
 							<Implementation-Title>${Gerrit-ApiType} ${project.artifactId}</Implementation-Title>
 							<Implementation-Version>${project.version}</Implementation-Version>
 							<Gerrit-ApiType>${Gerrit-ApiType}</Gerrit-ApiType>
