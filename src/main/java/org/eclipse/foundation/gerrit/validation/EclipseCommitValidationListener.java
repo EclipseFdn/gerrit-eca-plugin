@@ -131,7 +131,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
               "The author has a current Eclipse Contributor Agreement (ECA) on file.", false));
     } else {
       if (isABot(authorIdent, author)) {
-        messages.add(new CommitValidationMessage("The author is a registered bot and does not need an ECA.", false))
+        messages.add(new CommitValidationMessage("The author is a registered bot and does not need an ECA.", false));
       } else {
         messages.add(
             new CommitValidationMessage(
