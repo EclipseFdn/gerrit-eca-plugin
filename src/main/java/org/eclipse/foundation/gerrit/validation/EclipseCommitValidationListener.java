@@ -9,8 +9,11 @@
  */
 package org.eclipse.foundation.gerrit.validation;
 
+import com.google.gerrit.entities.Account;
+import com.google.gerrit.entities.AccountGroup;
 import com.google.gerrit.extensions.annotations.Listen;
 import com.google.gerrit.server.IdentifiedUser;
+import com.google.gerrit.server.account.GroupCache;
 import com.google.gerrit.server.account.externalids.ExternalId;
 import com.google.gerrit.server.account.externalids.ExternalIds;
 import com.google.gerrit.server.config.PluginConfig;
@@ -19,6 +22,7 @@ import com.google.gerrit.server.events.CommitReceivedEvent;
 import com.google.gerrit.server.git.validators.CommitValidationException;
 import com.google.gerrit.server.git.validators.CommitValidationListener;
 import com.google.gerrit.server.git.validators.CommitValidationMessage;
+import com.google.gerrit.server.group.InternalGroup;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import java.io.IOException;
@@ -71,15 +75,18 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 
   private final ExternalIds externalIds;
   private final IdentifiedUser.GenericFactory factory;
+  private final GroupCache groupCache;
   private final APIService apiService;
 
   @Inject
   public EclipseCommitValidationListener(
       ExternalIds externalIds,
       IdentifiedUser.GenericFactory factory,
+      GroupCache groupCache,
       PluginConfigFactory cfgFactory) {
     this.externalIds = externalIds;
     this.factory = factory;
+    this.groupCache = groupCache;
     PluginConfig config = cfgFactory.getFromGerritConfig(PLUGIN_NAME, true);
     RetrofitFactory retrofitFactory =
         new RetrofitFactory(
@@ -157,6 +164,12 @@ public class EclipseCommitValidationListener implements CommitValidationListener
       throws CommitValidationException {
     try {
       if (author.isPresent()) {
+        Account.Id user = author.get().getAccountId();
+        Optional<InternalGroup> maybeGroup =
+            groupCache.get(AccountGroup.nameKey("Non-Interactive Users"));
+        if (maybeGroup.isPresent()) {
+          return maybeGroup.get().getMembers().stream().anyMatch(member -> user.equals(member));
+        }
         Response<List<Bot>> bots = this.apiService.bots(author.get().getUserName().get()).get();
         if (bots.isSuccessful())
           return bots.body().stream()
