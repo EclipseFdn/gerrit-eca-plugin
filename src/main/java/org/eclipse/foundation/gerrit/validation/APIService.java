@@ -12,7 +12,6 @@ package org.eclipse.foundation.gerrit.validation;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-
 import okhttp3.HttpUrl;
 import retrofit2.Response;
 import retrofit2.http.GET;

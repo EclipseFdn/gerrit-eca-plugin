@@ -6,29 +6,28 @@
  */
 package org.eclipse.foundation.gerrit.validation;
 
-import java.util.Objects;
-import java.util.regex.Pattern;
-
-import javax.annotation.Nullable;
-
 import com.google.auto.value.AutoValue;
 import com.squareup.moshi.JsonAdapter;
 import com.squareup.moshi.Moshi;
+import java.util.Objects;
+import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 
 @AutoValue
 public abstract class BotAccount {
 
-	@Nullable
-	public abstract String username();
-	@Nullable
-	public abstract String email();
-	
-	public boolean matches(Pattern pattern) {
-		return pattern.matcher(username()).matches() || 
-			(Objects.nonNull(email()) && pattern.matcher(email()).matches());
-	}
+  @Nullable
+  public abstract String username();
 
-	public static JsonAdapter<BotAccount> jsonAdapter(Moshi moshi) {
-		return new AutoValue_BotAccount.MoshiJsonAdapter(moshi);
-	}
+  @Nullable
+  public abstract String email();
+
+  public boolean matches(Pattern pattern) {
+    return pattern.matcher(username()).matches()
+        || (Objects.nonNull(email()) && pattern.matcher(email()).matches());
+  }
+
+  public static JsonAdapter<BotAccount> jsonAdapter(Moshi moshi) {
+    return new AutoValue_BotAccount.MoshiJsonAdapter(moshi);
+  }
 }

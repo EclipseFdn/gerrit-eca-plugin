@@ -9,19 +9,6 @@
  */
 package org.eclipse.foundation.gerrit.validation;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-
 import com.google.gerrit.extensions.annotations.Listen;
 import com.google.gerrit.server.IdentifiedUser;
 import com.google.gerrit.server.account.externalids.ExternalId;
@@ -34,13 +21,23 @@ import com.google.gerrit.server.git.validators.CommitValidationListener;
 import com.google.gerrit.server.git.validators.CommitValidationMessage;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
-
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.eclipse.jgit.errors.ConfigInvalidException;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import retrofit2.Response;
 
 /**
@@ -131,7 +128,9 @@ public class EclipseCommitValidationListener implements CommitValidationListener
               "The author has a current Eclipse Contributor Agreement (ECA) on file.", false));
     } else {
       if (isABot(authorIdent, author)) {
-        messages.add(new CommitValidationMessage("The author is a registered bot and does not need an ECA.", false));
+        messages.add(
+            new CommitValidationMessage(
+                "The author is a registered bot and does not need an ECA.", false));
       } else {
         messages.add(
             new CommitValidationMessage(
@@ -154,11 +153,14 @@ public class EclipseCommitValidationListener implements CommitValidationListener
     return messages;
   }
 
-  private boolean isABot(PersonIdent authorIdent, Optional<IdentifiedUser> author) throws CommitValidationException {
+  private boolean isABot(PersonIdent authorIdent, Optional<IdentifiedUser> author)
+      throws CommitValidationException {
     try {
       if (author.isPresent()) {
         Response<List<Bot>> bots = this.apiService.bots(author.get().getUserName().get()).get();
-        if (bots.isSuccessful()) return bots.body().stream().anyMatch(b -> b.email() != null && b.email().equals(authorIdent.getEmailAddress()));
+        if (bots.isSuccessful())
+          return bots.body().stream()
+              .anyMatch(b -> b.email() != null && b.email().equals(authorIdent.getEmailAddress()));
       }
 
       // Start a request for all emails, if any match, considered the user a bot
@@ -173,7 +175,14 @@ public class EclipseCommitValidationListener implements CommitValidationListener
               .collect(Collectors.toList());
 
       return anyMatch(
-              searches, e -> e.isSuccessful() && e.body().stream().anyMatch(a -> a.email() != null && a.email().equals(authorIdent.getEmailAddress())))
+              searches,
+              e ->
+                  e.isSuccessful()
+                      && e.body().stream()
+                          .anyMatch(
+                              a ->
+                                  a.email() != null
+                                      && a.email().equals(authorIdent.getEmailAddress())))
           .get()
           .booleanValue();
     } catch (ExecutionException e) {
