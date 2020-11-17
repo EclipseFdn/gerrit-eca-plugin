@@ -1,149 +1,68 @@
-/*******************************************************************************
- * Copyright (C) 2020 Eclipse Foundation
- * 
- * This program and the accompanying materials are made
- * available under the terms of the Eclipse Public License 2.0
- * which is available at https://www.eclipse.org/legal/epl-2.0/
- * 
- * SPDX-License-Identifier: EPL-2.0
- ******************************************************************************/
+/**
+ * ***************************************************************************** Copyright (C) 2020
+ * Eclipse Foundation
+ *
+ * <p>This program and the accompanying materials are made available under the terms of the Eclipse
+ * Public License 2.0 which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * <p>SPDX-License-Identifier: EPL-2.0
+ * ****************************************************************************
+ */
 package org.eclipse.foundation.gerrit.validation;
 
-import java.util.ArrayList;
 import java.util.List;
+
+import org.eclipse.foundation.gerrit.validation.GitUser.Builder;
+
+import com.google.auto.value.AutoValue;
+import com.squareup.moshi.JsonAdapter;
+import com.squareup.moshi.Moshi;
 
 /**
  * Represents a Git commit with basic data and metadata about the revision.
- * 
- * @author Martin Lowe
  *
+ * @author Martin Lowe
  */
-public class Commit {
-	private String hash;
-	private String subject;
-	private String body;
-	private List<String> parents;
-	private GitUser author;
-	private GitUser committer;
-	private boolean head;
+@AutoValue
+public abstract class Commit {
+  public abstract String hash();
 
-	/**
-	 * @return the hash
-	 */
-	public String getHash() {
-		return this.hash;
-	}
+  public abstract String subject();
 
-	/**
-	 * @param hash the hash to set
-	 */
-	public void setHash(String hash) {
-		this.hash = hash;
-	}
+  public abstract String body();
 
-	/**
-	 * @return the subject
-	 */
-	public String getSubject() {
-		return this.subject;
-	}
+  public abstract List<String> parents();
 
-	/**
-	 * @param subject the subject to set
-	 */
-	public void setSubject(String subject) {
-		this.subject = subject;
-	}
+  public abstract GitUser author();
 
-	/**
-	 * @return the body
-	 */
-	public String getBody() {
-		return this.body;
-	}
+  public abstract GitUser committer();
 
-	/**
-	 * @param body the body to set
-	 */
-	public void setBody(String body) {
-		this.body = body;
-	}
+  public abstract boolean head();
 
-	/**
-	 * @return the parents
-	 */
-	public List<String> getParents() {
-		return new ArrayList<>(this.parents);
-	}
+  public static JsonAdapter<Commit> jsonAdapter(Moshi moshi) {
+    return new AutoValue_Commit.MoshiJsonAdapter(moshi);
+  }
 
-	/**
-	 * @param parents the parents to set
-	 */
-	public void setParents(List<String> parents) {
-		this.parents = new ArrayList<>(parents);
-	}
+  static Builder builder() {
+    return new AutoValue_Commit.Builder();
+  }
 
-	/**
-	 * @return the author
-	 */
-	public GitUser getAuthor() {
-		return this.author;
-	}
+  @AutoValue.Builder
+  abstract static class Builder {
+    public abstract Builder hash(String hash);
 
-	/**
-	 * @param author the author to set
-	 */
-	public void setAuthor(GitUser author) {
-		this.author = author;
-	}
+    public abstract Builder subject(String subject);
 
-	/**
-	 * @return the commiter
-	 */
-	public GitUser getCommitter() {
-		return this.committer;
-	}
+    public abstract Builder body(String body);
 
-	/**
-	 * @param committer the committer to set
-	 */
-	public void setCommitter(GitUser committer) {
-		this.committer = committer;
-	}
+    public abstract Builder parents(List<String> parents);
 
-	/**
-	 * @return the head
-	 */
-	public boolean isHead() {
-		return this.head;
-	}
+    public abstract Builder author(GitUser author);
 
-	/**
-	 * @param head the head to set
-	 */
-	public void setHead(boolean head) {
-		this.head = head;
-	}
+    public abstract Builder committer(GitUser committer);
 
-	@Override
-	public String toString() {
-		StringBuilder builder = new StringBuilder();
-		builder.append("Commit [hash=");
-		builder.append(this.hash);
-		builder.append(", subject=");
-		builder.append(this.subject);
-		builder.append(", body=");
-		builder.append(this.body);
-		builder.append(", parents=");
-		builder.append(this.parents);
-		builder.append(", author=");
-		builder.append(this.author);
-		builder.append(", committer=");
-		builder.append(this.committer);
-		builder.append(", head=");
-		builder.append(this.head);
-		builder.append("]");
-		return builder.toString();
-	}
-	
+    public abstract Builder head(boolean head);
+
+    abstract Commit build();
+  }
 }

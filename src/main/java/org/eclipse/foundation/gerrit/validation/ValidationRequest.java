@@ -1,82 +1,50 @@
-/*******************************************************************************
- * Copyright (C) 2020 Eclipse Foundation
- * 
- * This program and the accompanying materials are made
- * available under the terms of the Eclipse Public License 2.0
- * which is available at https://www.eclipse.org/legal/epl-2.0/
- * 
- * SPDX-License-Identifier: EPL-2.0
- ******************************************************************************/
+/**
+ * ***************************************************************************** Copyright (C) 2020
+ * Eclipse Foundation
+ *
+ * <p>This program and the accompanying materials are made available under the terms of the Eclipse
+ * Public License 2.0 which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * <p>SPDX-License-Identifier: EPL-2.0
+ * ****************************************************************************
+ */
 package org.eclipse.foundation.gerrit.validation;
 
-import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
+
+import com.google.auto.value.AutoValue;
+import com.squareup.moshi.JsonAdapter;
+import com.squareup.moshi.Moshi;
 
 /**
  * Represents a request to validate a list of commits.
- * 
- * @author Martin Lowe
  *
+ * @author Martin Lowe
  */
-public class ValidationRequest {
-	private URI repoUrl;
-	private List<Commit> commits;
-	private ProviderType provider;
+@AutoValue
+public abstract class ValidationRequest {
+  public abstract String repoUrl();
 
-	/**
-	 * @return the repoUrl
-	 */
-	public URI getRepoUrl() {
-		return this.repoUrl;
-	}
+  public abstract List<Commit> commits();
 
-	/**
-	 * @param repoUrl the repoUrl to set
-	 */
-	public void setRepoUrl(URI repoUrl) {
-		this.repoUrl = repoUrl;
-	}
+  public abstract String provider();
 
-	/**
-	 * @return the commits
-	 */
-	public List<Commit> getCommits() {
-		return new ArrayList<>(this.commits);
-	}
+  public static JsonAdapter<ValidationRequest> jsonAdapter(Moshi moshi) {
+    return new AutoValue_ValidationRequest.MoshiJsonAdapter(moshi);
+  }
 
-	/**
-	 * @param commits the commits to set
-	 */
-	public void setCommits(List<Commit> commits) {
-		this.commits = new ArrayList<>(commits);
-	}
+  static Builder builder() {
+    return new AutoValue_ValidationRequest.Builder();
+  }
 
-	/**
-	 * @return the provider
-	 */
-	public ProviderType getProvider() {
-		return this.provider;
-	}
+  @AutoValue.Builder
+  abstract static class Builder {
+    public abstract Builder repoUrl(String repoUrl);
 
-	/**
-	 * @param provider the provider to set
-	 */
-	public void setProvider(ProviderType provider) {
-		this.provider = provider;
-	}
+    public abstract Builder commits(List<Commit> commits);
 
-	@Override
-	public String toString() {
-		StringBuilder builder = new StringBuilder();
-		builder.append("ValidationRequest [repoUrl=");
-		builder.append(this.repoUrl);
-		builder.append(", commits=");
-		builder.append(this.commits);
-		builder.append(", provider=");
-		builder.append(this.provider);
-		builder.append("]");
-		return builder.toString();
-	}
-	
+    public abstract Builder provider(String provider);
+
+    abstract ValidationRequest build();
+  }
 }

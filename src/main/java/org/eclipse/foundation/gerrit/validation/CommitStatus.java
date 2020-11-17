@@ -1,142 +1,51 @@
-/*******************************************************************************
- * Copyright (C) 2020 Eclipse Foundation
- * 
- * This program and the accompanying materials are made
- * available under the terms of the Eclipse Public License 2.0
- * which is available at https://www.eclipse.org/legal/epl-2.0/
- * 
- * SPDX-License-Identifier: EPL-2.0
- ******************************************************************************/
+/**
+ * ***************************************************************************** Copyright (C) 2020
+ * Eclipse Foundation
+ *
+ * <p>This program and the accompanying materials are made available under the terms of the Eclipse
+ * Public License 2.0 which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * <p>SPDX-License-Identifier: EPL-2.0
+ * ****************************************************************************
+ */
 package org.eclipse.foundation.gerrit.validation;
 
-import java.util.ArrayList;
 import java.util.List;
 
+import com.google.auto.value.AutoValue;
+import com.squareup.moshi.JsonAdapter;
+import com.squareup.moshi.Moshi;
+
 /**
- * Contains information generated about a commit that was submitted for
- * validation to the API.
- * 
- * @author Martin Lowe
+ * Contains information generated about a commit that was submitted for validation to the API.
  *
+ * @author Martin Lowe
  */
-public class CommitStatus {
-	private List<CommitStatusMessage> messages;
-	private List<CommitStatusMessage> warnings;
-	private List<CommitStatusMessage> errors;
+@AutoValue
+public abstract class CommitStatus {
+  public abstract List<CommitStatusMessage> messages();
 
-	public CommitStatus() {
-		this.messages = new ArrayList<>();
-		this.warnings = new ArrayList<>();
-		this.errors = new ArrayList<>();
-	}
+  public abstract List<CommitStatusMessage> warnings();
 
-	/**
-	 * @return the msgs
-	 */
-	public List<CommitStatusMessage> getMessages() {
-		return new ArrayList<>(this.messages);
-	}
+  public abstract List<CommitStatusMessage> errors();
 
-	/**
-	 * @param messages the msgs to set
-	 */
-	public void setMessages(List<CommitStatusMessage> messages) {
-		this.messages = new ArrayList<>(messages);
-	}
+  public static JsonAdapter<CommitStatus> jsonAdapter(Moshi moshi) {
+    return new AutoValue_CommitStatus.MoshiJsonAdapter(moshi);
+  }
 
-	/**
-	 * @param message message to add to current commit status
-	 * @param code    the status code for the message
-	 */
-	public void addMessage(String message, APIStatusCode code) {
-		this.messages.add(new CommitStatusMessage(code, message));
-	}
+  /**
+   * Represents a message with an associated error or success status code.
+   *
+   * @author Martin Lowe
+   */
+  @AutoValue
+  public abstract static class CommitStatusMessage {
+    public abstract int code();
 
-	/**
-	 * @return the warnings
-	 */
-	public List<CommitStatusMessage> getWarnings() {
-		return new ArrayList<>(this.warnings);
-	}
+    public abstract String message();
 
-	/**
-	 * @param warnings the warnings to set
-	 */
-	public void setWarnings(List<CommitStatusMessage> warnings) {
-		this.warnings = new ArrayList<>(warnings);
-	}
-
-	/**
-	 * @param warning warning to add to current commit status
-	 * @param code    the status code for the message
-	 */
-	public void addWarning(String warning, APIStatusCode code) {
-		this.warnings.add(new CommitStatusMessage(code, warning));
-	}
-
-	/**
-	 * @return the errs
-	 */
-	public List<CommitStatusMessage> getErrors() {
-		return new ArrayList<>(this.errors);
-	}
-
-	/**
-	 * @param errors the errors to set
-	 */
-	public void setErrors(List<CommitStatusMessage> errors) {
-		this.errors = new ArrayList<>(errors);
-	}
-
-	/**
-	 * @param error error message to add to current commit status
-	 * @param code  the error status for the current message
-	 */
-	public void addError(String error, APIStatusCode code) {
-		this.errors.add(new CommitStatusMessage(code, error));
-	}
-
-	/**
-	 * Represents a message with an associated error or success status code.
-	 * 
-	 * @author Martin Lowe
-	 *
-	 */
-	public static class CommitStatusMessage {
-		private APIStatusCode code;
-		private String message;
-
-		public CommitStatusMessage(APIStatusCode code, String message) {
-			this.code = code;
-			this.message = message;
-		}
-
-		/**
-		 * @return the code
-		 */
-		public APIStatusCode getCode() {
-			return this.code;
-		}
-
-		/**
-		 * @param code the code to set
-		 */
-		public void setCode(APIStatusCode code) {
-			this.code = code;
-		}
-
-		/**
-		 * @return the message
-		 */
-		public String getMessage() {
-			return this.message;
-		}
-
-		/**
-		 * @param message the message to set
-		 */
-		public void setMessage(String message) {
-			this.message = message;
-		}
-	}
+    public static JsonAdapter<CommitStatusMessage> jsonAdapter(Moshi moshi) {
+      return new AutoValue_CommitStatus_CommitStatusMessage.MoshiJsonAdapter(moshi);
+    }
+  }
 }

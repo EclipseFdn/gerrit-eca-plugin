@@ -11,11 +11,10 @@ package org.eclipse.foundation.gerrit.validation;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -35,7 +34,10 @@ import com.google.gerrit.server.git.validators.CommitValidationListener;
 import com.google.gerrit.server.git.validators.CommitValidationMessage;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
+import com.squareup.moshi.JsonAdapter;
 
+import okhttp3.ResponseBody;
+import okio.BufferedSource;
 import retrofit2.Response;
 
 /**
@@ -53,19 +55,24 @@ import retrofit2.Response;
 @Listen
 @Singleton
 public class EclipseCommitValidationListener implements CommitValidationListener {
-  private static final String PLUGIN_NAME = "eclipse-eca-validation";
-
   private static final Logger log = LoggerFactory.getLogger(EclipseCommitValidationListener.class);
   private static final String ECA_DOCUMENTATION = "Please see http://wiki.eclipse.org/ECA";
 
   private final GitRepositoryManager repoManager;
   private final APIService apiService;
+  private final JsonAdapter<ValidationResponse> responseAdapter;
 
   @Inject
   public EclipseCommitValidationListener(GitRepositoryManager repoManager) {
     this.repoManager = repoManager;
     RetrofitFactory retrofitFactory = new RetrofitFactory();
     this.apiService = retrofitFactory.newService(APIService.BASE_URL, APIService.class);
+    Optional<JsonAdapter<ValidationResponse>> adapter =
+        retrofitFactory.adapter(ValidationResponse.class);
+    if (adapter.isEmpty()) {
+      throw new IllegalStateException("Cannot process validation responses, not continuing");
+    }
+    this.responseAdapter = adapter.get();
   }
 
   /**
@@ -78,15 +85,15 @@ public class EclipseCommitValidationListener implements CommitValidationListener
     List<String> errors = new ArrayList<>();
 
     // create the request container
-    ValidationRequest req = new ValidationRequest();
-    req.setProvider(ProviderType.GERRIT);
+    ValidationRequest.Builder req = ValidationRequest.builder();
+    req.provider("gerrit");
 
     // get the disk location for the project and set to the request
     try (Repository repo = this.repoManager.openRepository(receiveEvent.project.getNameKey())) {
-      File indexFile = repo.getIndexFile();
+      File indexFile = repo.getDirectory();
       String projLoc = indexFile.getAbsolutePath();
-      req.setRepoUrl(new URI(projLoc));
-    } catch (IOException | URISyntaxException e) {
+      req.repoUrl(projLoc);
+    } catch (IOException e) {
       log.error(e.getMessage(), e);
       throw new CommitValidationException(e.getMessage());
     }
@@ -106,39 +113,46 @@ public class EclipseCommitValidationListener implements CommitValidationListener
             false));
     addEmptyLine(messages);
     // update the commit list for the request to contain the current request
-    req.setCommits(Arrays.asList(getRequestCommit(commit, authorIdent, committerIdent)));
-
+    req.commits(Arrays.asList(getRequestCommit(commit, authorIdent, committerIdent)));
     // send the request and await the response from the API
-    CompletableFuture<Response<ValidationResponse>> futureResponse = this.apiService.validate(req);
+    CompletableFuture<Response<ValidationResponse>> futureResponse =
+        this.apiService.validate(req.build());
     try {
-      ValidationResponse response = futureResponse.get().body();
-      for (CommitStatus c : response.getCommits().values()) {
+      Response<ValidationResponse> rawResponse = futureResponse.get();
+      ValidationResponse response;
+      // handle error responses (okhttp doesn't assume error types)
+      if (rawResponse.isSuccessful()) {
+        response = rawResponse.body();
+      } else {
+        // auto close the response resources after fetching
+        try (ResponseBody err = futureResponse.get().errorBody();
+            BufferedSource src = err.source()) {
+          response = this.responseAdapter.fromJson(src);
+        }
+      }
+      for (CommitStatus c : response.commits().values()) {
         messages.addAll(
-            c.getMessages()
+            c.messages()
                 .stream()
                 .map(
                     message ->
                         new CommitValidationMessage(
-                            message.getMessage(),
-                            message.getCode().code() < 0 && response.isTrackedProject()))
+                            message.message(), message.code() < 0 && response.trackedProject()))
                 .collect(Collectors.toList()));
         addEmptyLine(messages);
-        if (response.getErrorCount() > 0 && response.isTrackedProject()) {
+        if (response.errorCount() > 0 && response.trackedProject()) {
           errors.addAll(
-              c.getErrors()
-                  .stream()
-                  .map(CommitStatusMessage::getMessage)
-                  .collect(Collectors.toList()));
+              c.errors().stream().map(CommitStatusMessage::message).collect(Collectors.toList()));
           errors.add("An Eclipse Contributor Agreement is required.");
         }
       }
-    } catch (ExecutionException e) {
+    } catch (IOException | ExecutionException e) {
       log.error(e.getMessage(), e);
       throw new CommitValidationException("An error happened while checking commit", e);
     } catch (InterruptedException e) {
       log.error(e.getMessage(), e);
       Thread.currentThread().interrupt();
-      throw new CommitValidationException("Verification of commit bot has been interrupted", e);
+      throw new CommitValidationException("Verification of commit has been interrupted", e);
     }
 
     // TODO Extend exception-throwing delegation to include all possible messages.
@@ -162,9 +176,11 @@ public class EclipseCommitValidationListener implements CommitValidationListener
    */
   private static Commit getRequestCommit(RevCommit src, PersonIdent author, PersonIdent committer) {
     // load commit object with information contained in the commit
-    Commit c = new Commit();
-    c.setHash(src.name());
-    c.setBody(src.getFullMessage());
+    Commit.Builder c = Commit.builder();
+    c.subject(src.getShortMessage());
+    c.hash(src.name());
+    c.body(src.getFullMessage());
+    c.head(true);
 
     // get the parent commits, and retrieve their hashes
     RevCommit[] parents = src.getParents();
@@ -172,19 +188,19 @@ public class EclipseCommitValidationListener implements CommitValidationListener
     for (RevCommit parent : parents) {
       parentHashes.add(parent.name());
     }
-    c.setParents(parentHashes);
+    c.parents(parentHashes);
 
     // convert the commit users to objects to be passed to ECA service
-    GitUser authorGit = new GitUser();
-    authorGit.setMail(author.getEmailAddress());
-    authorGit.setName(author.getName());
-    GitUser committerGit = new GitUser();
-    committerGit.setMail(committer.getEmailAddress());
-    committerGit.setName(committer.getName());
+    GitUser.Builder authorGit = GitUser.builder();
+    authorGit.mail(author.getEmailAddress());
+    authorGit.name(author.getName());
+    GitUser.Builder committerGit = GitUser.builder();
+    committerGit.mail(committer.getEmailAddress());
+    committerGit.name(committer.getName());
 
-    c.setAuthor(authorGit);
-    c.setCommitter(committerGit);
-    return c;
+    c.author(authorGit.build());
+    c.committer(committerGit.build());
+    return c.build();
   }
 
   private static void addSeparatorLine(List<CommitValidationMessage> messages) {

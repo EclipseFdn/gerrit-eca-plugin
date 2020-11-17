@@ -1,49 +1,42 @@
-/*******************************************************************************
+/**
  * Copyright (C) 2020 Eclipse Foundation
- * 
- * This program and the accompanying materials are made
- * available under the terms of the Eclipse Public License 2.0
- * which is available at https://www.eclipse.org/legal/epl-2.0/
- * 
- * SPDX-License-Identifier: EPL-2.0
- ******************************************************************************/
+ *
+ * <p>This program and the accompanying materials are made available under the terms of the Eclipse
+ * Public License 2.0 which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * <p>SPDX-License-Identifier: EPL-2.0
+ */
 package org.eclipse.foundation.gerrit.validation;
 
+import com.google.auto.value.AutoValue;
+import com.squareup.moshi.JsonAdapter;
+import com.squareup.moshi.Moshi;
+
 /**
- * Basic object representing a Git users data required for verification.
- * 
- * @author Martin Lowe
+ * Basic object representing a Git users data required for verification written with AutoValue.
  *
+ * @author Martin Lowe
  */
-public class GitUser {
-	private String name;
-	private String mail;
+@AutoValue
+public abstract class GitUser {
+  public abstract String name();
 
-	/**
-	 * @return the name
-	 */
-	public String getName() {
-		return this.name;
-	}
+  public abstract String mail();
 
-	/**
-	 * @param name the name to set
-	 */
-	public void setName(String name) {
-		this.name = name;
-	}
+  public static JsonAdapter<GitUser> jsonAdapter(Moshi moshi) {
+    return new AutoValue_GitUser.MoshiJsonAdapter(moshi);
+  }
 
-	/**
-	 * @return the mail
-	 */
-	public String getMail() {
-		return this.mail;
-	}
+  static Builder builder() {
+    return new AutoValue_GitUser.Builder();
+  }
 
-	/**
-	 * @param mail the mail to set
-	 */
-	public void setMail(String mail) {
-		this.mail = mail;
-	}
+  @AutoValue.Builder
+  abstract static class Builder {
+    abstract Builder name(String name);
+
+    abstract Builder mail(String mail);
+
+    abstract GitUser build();
+  }
 }
