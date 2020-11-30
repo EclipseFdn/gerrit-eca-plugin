@@ -35,6 +35,7 @@ import com.google.gerrit.server.git.validators.CommitValidationMessage;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.squareup.moshi.JsonAdapter;
+import com.squareup.moshi.JsonEncodingException;
 
 import okhttp3.ResponseBody;
 import okio.BufferedSource;
@@ -128,6 +129,9 @@ public class EclipseCommitValidationListener implements CommitValidationListener
         try (ResponseBody err = futureResponse.get().errorBody();
             BufferedSource src = err.source()) {
           response = this.responseAdapter.fromJson(src);
+        } catch (JsonEncodingException e) {
+          log.error(e.getMessage(), e);
+          throw new CommitValidationException("An error happened while retrieving validation response, please contact the administrator if this error persists", e);
         }
       }
       for (CommitStatus c : response.commits().values()) {
