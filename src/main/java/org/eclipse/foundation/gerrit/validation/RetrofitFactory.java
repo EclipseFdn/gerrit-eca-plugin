@@ -10,13 +10,20 @@
  */
 package org.eclipse.foundation.gerrit.validation;
 
-import com.squareup.moshi.Moshi;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.squareup.moshi.JsonAdapter;
+import com.squareup.moshi.Moshi;
+
 import okhttp3.ConnectionSpec;
 import okhttp3.Dispatcher;
 import okhttp3.HttpUrl;
@@ -24,19 +31,21 @@ import okhttp3.OkHttpClient;
 import okhttp3.internal.Util;
 import okhttp3.logging.HttpLoggingInterceptor;
 import okhttp3.logging.HttpLoggingInterceptor.Level;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import retrofit2.Retrofit;
 import retrofit2.converter.moshi.MoshiConverterFactory;
 
 final class RetrofitFactory {
   private static final Logger log = LoggerFactory.getLogger(RetrofitFactory.class);
+
+  static final String AUTHORIZATION = "Authorization";
+
   private final OkHttpClient client;
   private final MoshiConverterFactory moshiConverterFactory;
+  private final Moshi moshi;
 
-  RetrofitFactory(String grantType, String clientId, String clientSecret, String scope) {
-    Moshi moshi = new Moshi.Builder().add(JsonAdapterFactory.create()).build();
-    this.moshiConverterFactory = MoshiConverterFactory.create(moshi);
+  RetrofitFactory() {
+    this.moshi = new Moshi.Builder().add(JsonAdapterFactory.create()).build();
+    this.moshiConverterFactory = MoshiConverterFactory.create(this.moshi);
 
     HttpLoggingInterceptor loggingInterceptor =
         new HttpLoggingInterceptor(
@@ -47,9 +56,9 @@ final class RetrofitFactory {
                   }
                 })
             .setLevel(Level.BASIC);
-    loggingInterceptor.redactHeader(OAuthAuthenticator.AUTHORIZATION);
+    loggingInterceptor.redactHeader(AUTHORIZATION);
 
-    OkHttpClient baseClient =
+    this.client =
         new OkHttpClient.Builder()
             .callTimeout(Duration.ofSeconds(5))
             .dispatcher(
@@ -66,25 +75,30 @@ final class RetrofitFactory {
             // TLS_1_0)
             .connectionSpecs(Arrays.asList(ConnectionSpec.COMPATIBLE_TLS, ConnectionSpec.CLEARTEXT))
             .build();
-    AccountsService accountsService =
-        newRetrofit(AccountsService.BASE_URL, baseClient).create(AccountsService.class);
-    AccessTokenProvider accessTokenProvider =
-        new AccessTokenProvider(accountsService, grantType, clientId, clientSecret, scope);
-
-    this.client =
-        baseClient.newBuilder().authenticator(new OAuthAuthenticator(accessTokenProvider)).build();
   }
 
-  private Retrofit newRetrofit(HttpUrl baseUrl, OkHttpClient client) {
+  private Retrofit newRetrofit(HttpUrl baseUrl) {
     return new Retrofit.Builder()
         .baseUrl(baseUrl)
         .callbackExecutor(Executors.newSingleThreadExecutor())
         .addConverterFactory(this.moshiConverterFactory)
-        .client(client)
+        .client(this.client)
         .build();
   }
 
   public <T> T newService(HttpUrl baseUrl, Class<T> serviceClass) {
-    return newRetrofit(baseUrl, this.client).create(serviceClass);
+    return newRetrofit(baseUrl).create(serviceClass);
+  }
+
+  /**
+   * Helper when handling requests, returns an adapter if it is registered within the current Moshi
+   * object.
+   *
+   * @param <T> the type of object to retrieve a JSON adapter for
+   * @param type the raw class type to retrieve a JSON adapter for
+   * @return optional with adapter if present
+   */
+  public <T> Optional<JsonAdapter<T>> adapter(Class<T> type) {
+    return Optional.ofNullable(this.moshi.adapter(type));
   }
 }

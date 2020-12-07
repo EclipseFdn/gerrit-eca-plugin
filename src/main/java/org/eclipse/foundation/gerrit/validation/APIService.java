@@ -10,29 +10,18 @@
  */
 package org.eclipse.foundation.gerrit.validation;
 
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import okhttp3.HttpUrl;
 import retrofit2.Response;
-import retrofit2.http.GET;
-import retrofit2.http.Path;
-import retrofit2.http.Query;
+import retrofit2.http.Body;
+import retrofit2.http.POST;
 
 interface APIService {
 
   static final HttpUrl BASE_URL = HttpUrl.get("https://api.eclipse.org/");
 
-  @GET("/account/profile")
-  CompletableFuture<Response<List<UserAccount>>> search(
-      @Query("uid") Integer uid, @Query("name") String name, @Query("mail") String mail);
-
-  @GET("/account/profile/{name}")
-  CompletableFuture<Response<UserAccount>> search(@Path("name") String name);
-
-  @GET("/account/profile/{name}/eca")
-  CompletableFuture<Response<ECA>> eca(@Path("name") String name);
-
-  @GET("/bots")
-  CompletableFuture<Response<List<Bot>>> bots(@Query("q") String query);
+	@POST("/git/eca")
+	CompletableFuture<Response<ValidationResponse>> validate(
+			@Body ValidationRequest request);
 }
