@@ -88,6 +88,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
     // create the request container
     ValidationRequest.Builder req = ValidationRequest.builder();
     req.provider("gerrit");
+    req.strictMode(true);
 
     // get the disk location for the project and set to the request
     try (Repository repo = this.repoManager.openRepository(receiveEvent.project.getNameKey())) {
@@ -116,8 +117,9 @@ public class EclipseCommitValidationListener implements CommitValidationListener
     // update the commit list for the request to contain the current request
     req.commits(Arrays.asList(getRequestCommit(commit, authorIdent, committerIdent)));
     // send the request and await the response from the API
+    ValidationRequest requestActual = req.build();
     CompletableFuture<Response<ValidationResponse>> futureResponse =
-        this.apiService.validate(req.build());
+        this.apiService.validate(requestActual);
     try {
       Response<ValidationResponse> rawResponse = futureResponse.get();
       ValidationResponse response;
@@ -131,7 +133,9 @@ public class EclipseCommitValidationListener implements CommitValidationListener
           response = this.responseAdapter.fromJson(src);
         } catch (JsonEncodingException e) {
           log.error(e.getMessage(), e);
-          throw new CommitValidationException("An error happened while retrieving validation response, please contact the administrator if this error persists", e);
+          throw new CommitValidationException(
+              "An error happened while retrieving validation response, please contact the administrator if this error persists",
+              e);
         }
       }
       for (CommitStatus c : response.commits().values()) {
@@ -141,10 +145,11 @@ public class EclipseCommitValidationListener implements CommitValidationListener
                 .map(
                     message ->
                         new CommitValidationMessage(
-                            message.message(), message.code() < 0 && response.trackedProject()))
+                            message.message(),
+                            message.code() < 0 && shouldEnforceStrict(response, requestActual)))
                 .collect(Collectors.toList()));
         addEmptyLine(messages);
-        if (response.errorCount() > 0 && response.trackedProject()) {
+        if (response.errorCount() > 0 && shouldEnforceStrict(response, requestActual)) {
           errors.addAll(
               c.errors().stream().map(CommitStatusMessage::message).collect(Collectors.toList()));
           errors.add("An Eclipse Contributor Agreement is required.");
@@ -205,6 +210,10 @@ public class EclipseCommitValidationListener implements CommitValidationListener
     c.author(authorGit.build());
     c.committer(committerGit.build());
     return c.build();
+  }
+
+  private static boolean shouldEnforceStrict(ValidationResponse response, ValidationRequest request) {
+    return response.trackedProject() || request.strictMode();
   }
 
   private static void addSeparatorLine(List<CommitValidationMessage> messages) {

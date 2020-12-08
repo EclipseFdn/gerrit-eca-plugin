@@ -29,6 +29,8 @@ public abstract class ValidationRequest {
 
   public abstract String provider();
 
+  public abstract boolean strictMode();
+
   public static JsonAdapter<ValidationRequest> jsonAdapter(Moshi moshi) {
     return new AutoValue_ValidationRequest.MoshiJsonAdapter(moshi);
   }
@@ -44,6 +46,8 @@ public abstract class ValidationRequest {
     public abstract Builder commits(List<Commit> commits);
 
     public abstract Builder provider(String provider);
+
+    public abstract Builder strictMode(boolean strictMode);
 
     abstract ValidationRequest build();
   }
