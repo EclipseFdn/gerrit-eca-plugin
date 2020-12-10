@@ -82,7 +82,7 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 
     // create the request container
     ValidationRequest.Builder req = ValidationRequest.builder();
-    req.repoUrl(receiveEvent.project.getNameKey().toString() + ".git");
+    req.repoUrl(receiveEvent.project.getNameKey().toString());
     req.provider("gerrit");
     req.strictMode(true);
 
@@ -105,6 +105,10 @@ public class EclipseCommitValidationListener implements CommitValidationListener
     req.commits(Arrays.asList(getRequestCommit(commit, authorIdent, committerIdent)));
     // send the request and await the response from the API
     ValidationRequest requestActual = req.build();
+    // log if enabled
+    if (log.isDebugEnabled()) {
+      log.debug("Request object: {}", requestActual);
+    }
     CompletableFuture<Response<ValidationResponse>> futureResponse =
         this.apiService.validate(requestActual);
     try {
@@ -124,6 +128,10 @@ public class EclipseCommitValidationListener implements CommitValidationListener
               "An error happened while retrieving validation response, please contact the administrator if this error persists",
               e);
         }
+      }
+      // log if enabled
+      if (log.isDebugEnabled()) {
+        log.debug("Response object: {}", response);
       }
       for (CommitStatus c : response.commits().values()) {
         messages.addAll(
@@ -199,7 +207,8 @@ public class EclipseCommitValidationListener implements CommitValidationListener
     return c.build();
   }
 
-  private static boolean shouldEnforceStrict(ValidationResponse response, ValidationRequest request) {
+  private static boolean shouldEnforceStrict(
+      ValidationResponse response, ValidationRequest request) {
     return response.trackedProject() || request.strictMode();
   }
 
