@@ -9,7 +9,6 @@
  */
 package org.eclipse.foundation.gerrit.validation;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -21,14 +20,12 @@ import java.util.stream.Collectors;
 
 import org.eclipse.foundation.gerrit.validation.CommitStatus.CommitStatusMessage;
 import org.eclipse.jgit.lib.PersonIdent;
-import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.gerrit.extensions.annotations.Listen;
 import com.google.gerrit.server.events.CommitReceivedEvent;
-import com.google.gerrit.server.git.GitRepositoryManager;
 import com.google.gerrit.server.git.validators.CommitValidationException;
 import com.google.gerrit.server.git.validators.CommitValidationListener;
 import com.google.gerrit.server.git.validators.CommitValidationMessage;
@@ -59,13 +56,11 @@ public class EclipseCommitValidationListener implements CommitValidationListener
   private static final Logger log = LoggerFactory.getLogger(EclipseCommitValidationListener.class);
   private static final String ECA_DOCUMENTATION = "Please see http://wiki.eclipse.org/ECA";
 
-  private final GitRepositoryManager repoManager;
   private final APIService apiService;
   private final JsonAdapter<ValidationResponse> responseAdapter;
 
   @Inject
-  public EclipseCommitValidationListener(GitRepositoryManager repoManager) {
-    this.repoManager = repoManager;
+  public EclipseCommitValidationListener() {
     RetrofitFactory retrofitFactory = new RetrofitFactory();
     this.apiService = retrofitFactory.newService(APIService.BASE_URL, APIService.class);
     Optional<JsonAdapter<ValidationResponse>> adapter =
@@ -87,18 +82,10 @@ public class EclipseCommitValidationListener implements CommitValidationListener
 
     // create the request container
     ValidationRequest.Builder req = ValidationRequest.builder();
+    req.repoUrl(receiveEvent.project.getNameKey().toString() + ".git");
     req.provider("gerrit");
     req.strictMode(true);
 
-    // get the disk location for the project and set to the request
-    try (Repository repo = this.repoManager.openRepository(receiveEvent.project.getNameKey())) {
-      File indexFile = repo.getDirectory();
-      String projLoc = indexFile.getAbsolutePath();
-      req.repoUrl(projLoc);
-    } catch (IOException e) {
-      log.error(e.getMessage(), e);
-      throw new CommitValidationException(e.getMessage());
-    }
     // retrieve information about the current commit
     RevCommit commit = receiveEvent.commit;
     PersonIdent authorIdent = commit.getAuthorIdent();
