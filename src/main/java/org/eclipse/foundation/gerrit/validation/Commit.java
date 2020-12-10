@@ -12,8 +12,6 @@ package org.eclipse.foundation.gerrit.validation;
 
 import java.util.List;
 
-import org.eclipse.foundation.gerrit.validation.GitUser.Builder;
-
 import com.google.auto.value.AutoValue;
 import com.squareup.moshi.JsonAdapter;
 import com.squareup.moshi.Moshi;
@@ -45,6 +43,27 @@ public abstract class Commit {
 
   static Builder builder() {
     return new AutoValue_Commit.Builder();
+  }
+
+  @Override
+  public String toString() {
+    StringBuilder builder2 = new StringBuilder();
+    builder2.append("Commit [hash()=");
+    builder2.append(hash());
+    builder2.append(", subject()=");
+    builder2.append(subject());
+    builder2.append(", body()=");
+    builder2.append(body());
+    builder2.append(", parents()=");
+    builder2.append(parents());
+    builder2.append(", author()=");
+    builder2.append(author());
+    builder2.append(", committer()=");
+    builder2.append(committer());
+    builder2.append(", head()=");
+    builder2.append(head());
+    builder2.append("]");
+    return builder2.toString();
   }
 
   @AutoValue.Builder

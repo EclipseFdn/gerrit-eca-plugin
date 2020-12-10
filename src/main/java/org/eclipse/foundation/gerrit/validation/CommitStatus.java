@@ -33,6 +33,19 @@ public abstract class CommitStatus {
     return new AutoValue_CommitStatus.MoshiJsonAdapter(moshi);
   }
 
+  @Override
+  public String toString() {
+    StringBuilder builder = new StringBuilder();
+    builder.append("CommitStatus [messages()=");
+    builder.append(messages());
+    builder.append(", warnings()=");
+    builder.append(warnings());
+    builder.append(", errors()=");
+    builder.append(errors());
+    builder.append("]");
+    return builder.toString();
+  }
+
   /**
    * Represents a message with an associated error or success status code.
    *
@@ -46,6 +59,17 @@ public abstract class CommitStatus {
 
     public static JsonAdapter<CommitStatusMessage> jsonAdapter(Moshi moshi) {
       return new AutoValue_CommitStatus_CommitStatusMessage.MoshiJsonAdapter(moshi);
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder builder = new StringBuilder();
+      builder.append("CommitStatusMessage [code()=");
+      builder.append(code());
+      builder.append(", message()=");
+      builder.append(message());
+      builder.append("]");
+      return builder.toString();
     }
   }
 }

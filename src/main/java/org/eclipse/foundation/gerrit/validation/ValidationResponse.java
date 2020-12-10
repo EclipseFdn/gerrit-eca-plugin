@@ -36,4 +36,21 @@ public abstract class ValidationResponse {
   public static JsonAdapter<ValidationResponse> jsonAdapter(Moshi moshi) {
     return new AutoValue_ValidationResponse.MoshiJsonAdapter(moshi);
   }
+
+  @Override
+  public String toString() {
+    StringBuilder builder = new StringBuilder();
+    builder.append("ValidationResponse [passed()=");
+    builder.append(passed());
+    builder.append(", errorCount()=");
+    builder.append(errorCount());
+    builder.append(", time()=");
+    builder.append(time());
+    builder.append(", commits()=");
+    builder.append(commits());
+    builder.append(", trackedProject()=");
+    builder.append(trackedProject());
+    builder.append("]");
+    return builder.toString();
+  }
 }

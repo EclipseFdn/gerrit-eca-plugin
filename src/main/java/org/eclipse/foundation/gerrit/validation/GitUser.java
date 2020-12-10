@@ -31,6 +31,17 @@ public abstract class GitUser {
     return new AutoValue_GitUser.Builder();
   }
 
+  @Override
+  public String toString() {
+    StringBuilder builder2 = new StringBuilder();
+    builder2.append("GitUser [name()=");
+    builder2.append(name());
+    builder2.append(", mail()=");
+    builder2.append(mail());
+    builder2.append("]");
+    return builder2.toString();
+  }
+
   @AutoValue.Builder
   abstract static class Builder {
     abstract Builder name(String name);
