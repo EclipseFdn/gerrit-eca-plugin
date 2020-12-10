@@ -35,6 +35,21 @@ public abstract class ValidationRequest {
     return new AutoValue_ValidationRequest.MoshiJsonAdapter(moshi);
   }
 
+  @Override
+  public String toString() {
+    StringBuilder builder2 = new StringBuilder();
+    builder2.append("ValidationRequest [repoUrl()=");
+    builder2.append(repoUrl());
+    builder2.append(", commits()=");
+    builder2.append(commits());
+    builder2.append(", provider()=");
+    builder2.append(provider());
+    builder2.append(", strictMode()=");
+    builder2.append(strictMode());
+    builder2.append("]");
+    return builder2.toString();
+  }
+
   static Builder builder() {
     return new AutoValue_ValidationRequest.Builder();
   }
