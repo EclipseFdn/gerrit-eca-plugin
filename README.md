@@ -1,6 +1,14 @@
 gerrit-eca-plugin
 =================
 
+---
+**NOTE**
+
+This project was migrated to [Eclipse Gitlab](https://gitlab.eclipse.org/eclipsefdn/it/webdev/gerrit-eca-plugin) on October 14, 2021.
+
+---
+
+
 A Gerrit plugin for controlling pushes to eclipse.org repositories.
 
 Provides an implementation of [Gerrit](https://code.google.com/p/gerrit/) 3.2's CommitValidationListener interface that imposes the following restrictions:
